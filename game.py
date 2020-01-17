@@ -19,6 +19,12 @@ class Game:
             txt = f.read()
         return cls(txt)
 
+    def is_outofbounds(self, position, direction):
+        p_pos = position + direction
+        outofbounds = any(axis < 0 for axis in p_pos) or any(
+            axis >= max_axis for axis, max_axis in zip(p_pos, self.grid.shape))
+        return outofbounds
+
     def is_valid_move(self, position, direction):
         p_pos = position + direction
         outofbounds = any(axis < 0 for axis in p_pos) or any(axis >= max_axis for axis, max_axis in zip(p_pos, self.grid.shape))
@@ -73,7 +79,7 @@ class Game:
         print('current position', self.player_position, 'direction', direction, sep=' ')
         move_result, reward = self.move(direction)
         standard_reward = reward / 100
-        self.agent.get_reward(self.grid.as_int(standardize=True), standard_reward)
+        self.agent.get_reward(self.grid.as_int(standardize=True), standard_reward, self.player_position)
         print('move_result', move_result, 'current position ', self.player_position, sep=' ')
         return move_result
 
