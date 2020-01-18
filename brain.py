@@ -10,13 +10,9 @@ from grid import Point
 def cortex(input_size):
     inputs = Input(input_size)
     outputs = inputs
-    i = 2
-    while all(axis > ((2 - j) * (3 + i)) for j, axis in enumerate(outputs.shape[1:3])):
-        outputs = Conv2D(32 * min(i, 4), kernel_size=min(3+i-2, 7))(outputs)
+    for i in range(5):
+        outputs = Conv2D(32 * min(i+1, 4), kernel_size=3, strides=2)(outputs)
         outputs = ReLU()(outputs)
-        if i % 2 == 1:
-            outputs = MaxPool2D(min(i, 8))(outputs)
-        i += 2
     outputs = Flatten()(outputs)
     return Model(inputs, outputs, name='main_cortex')
 
@@ -66,8 +62,6 @@ def curiosity_loss(state, player_position, output_model):
     player_neightbours = get_player_neightbours(player_position, state)
     ohe_matrix = ohe_matrix[(player_neightbours * 4).astype('int')]
     loss = tf.reduce_sum(tf.losses.categorical_crossentropy(ohe_matrix, output_model), axis=-1)
-    if len(loss.shape) > 0:
-        loss = tf.reduce_mean(loss)
     return loss
 
 

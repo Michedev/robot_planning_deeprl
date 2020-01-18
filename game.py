@@ -1,5 +1,7 @@
 from QAgent import QAgent
 from grid import Direction, Point, Grid
+from numba import jit, njit
+from numpy import sign
 
 
 class Game:
@@ -60,13 +62,9 @@ class Game:
         return -1, -1
 
     def calc_extra_reward(self, cells_explored, new_position, prev_position):
-        extra_reward = 0.001 * cells_explored
         curr_distance = new_position.euclidean_distance(self.grid.destination_position)
         prev_distance = prev_position.euclidean_distance(self.grid.destination_position)
-        if self.min_distance > curr_distance:
-            self.min_distance = curr_distance
-            extra_reward += 0.1
-        extra_reward += (prev_distance - curr_distance) / 10
+        extra_reward = curr_distance / 100 / 200 * sign(prev_distance - curr_distance)
         return extra_reward
 
     def run_turn(self):
