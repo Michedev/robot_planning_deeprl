@@ -9,7 +9,7 @@ class Game:
     def __init__(self, grid_string):
         self.grid_string = grid_string
         self.grid = Grid.from_string(grid_string)
-        self.agent = QAgent(self.grid)
+        self.agent = QAgent(self.grid.shape)
         self.player_position = self.grid.initial_player_position
         self.min_distance = (self.grid.w * self.grid.h) ** 2
         self.first_run = True
@@ -65,6 +65,7 @@ class Game:
         curr_distance = new_position.manhattan_distance(self.grid.destination_position)
         prev_distance = prev_position.manhattan_distance(self.grid.destination_position)
         extra_reward = curr_distance / 100 / 200 * sign(prev_distance - curr_distance)
+        extra_reward += 0.01 * cells_explored
         return extra_reward
 
     def run_turn(self):
@@ -89,7 +90,15 @@ class Game:
         while move_result != 1:
             move_result = self.run_turn()
             counter_moves += 1
+        print('=' * 100)
+        print(f'\n\tmoves to reach destination: {counter_moves}')
+        print('=' * 100)
         return counter_moves
+
+    def load_from_file(self, fname):
+        self.grid = Grid.from_file(fname)
+        self.agent.reset()
+
 
     def play_games(self, n=1):
         if self.first_run:
