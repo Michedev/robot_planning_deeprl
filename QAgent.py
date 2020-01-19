@@ -18,7 +18,7 @@ class ExperienceReplay(ABC):
 
 class QAgent:
 
-    def __init__(self, grid, discount_factor=0.85, experience_size=8):
+    def __init__(self, grid, discount_factor=0.85, experience_size=32):
         self.epsilon = 1.0
         self.discount_factor = discount_factor
         self.grid_shape = list(grid.shape) + [1]
@@ -50,6 +50,7 @@ class QAgent:
         grid = tf.expand_dims(grid, axis=-1)
         q_values = self.brain(grid)
 
+
         q_values = tf.squeeze(q_values)
         epsilon = np.e ** (-0.01 * self.episode)
         if random() > epsilon:
@@ -57,6 +58,9 @@ class QAgent:
         else:
             i = randint(0, 3)
         self._q_value_hat = q_values[i]
+        tf.summary.scalar('expected reward', self._q_value_hat, self.episode)
+        tf.summary.scalar('action took', i, self.episode)
+
         # self._curiosity_values = predicted_values
         self.experience_buffer[self.__i_experience, :100*200] = grid.numpy().reshape((-1,))
         self.experience_buffer[self.__i_experience, 100*200] = i
@@ -93,9 +97,7 @@ class QAgent:
         # self.opt.apply_gradients(zip(self._gradients_2,
         #                              self.brain_section('main_cortex') + self.brain_section('curiosity_module')))
         #
-        # tf.summary.scalar('loss', loss, step=self.episode)
-        # tf.summary.scalar('expected reward', self._q_value_hat, self.episode)
-        # tf.summary.scalar('true reward', reward, self.episode)
+        tf.summary.scalar('true reward', reward, self.episode)
 
         self.episode += 1
         self.__i_experience += 1
@@ -103,8 +105,6 @@ class QAgent:
     def experience_update(self, batch, discount_factor):
         batch = tf.squeeze(batch)
         (s_t, a_t, r_t, s_t1) = batch[:, :100*200], batch[:, 100*200], batch[:, 100*200+1], batch[:, 100*200+2:]
-
-        # (s_t, a_t, r_t, x_player, y_player, s_t1) = batch[:, :100*200], batch[:, 100*200], batch[:, 100*200+1], batch[:, 100*200+2], batch[:, 100*200+3], batch[:, 100*200+4:]
         a_t = tf.cast(a_t, tf.int32)
         s_t = tf.reshape(s_t, [self.experience_size] + self.grid_shape)
         s_t1 = tf.reshape(s_t1, [self.experience_size] + self.grid_shape)
@@ -115,11 +115,11 @@ class QAgent:
             exp_rew_t = exp_rew_t[:, a_t]
             exp_rew_t1 = self.brain(s_t1)
             exp_rew_t1 = tf.reduce_max(exp_rew_t1, axis=1)
-            # loss = loss_v2(r_t, exp_rew_a, exp_rew_t1, discount_factor, s_t, Point(x_player, y_player), curiosity_values)
             loss = loss_v1(r_t, exp_rew_t, exp_rew_t1, discount_factor)
 
             del s_t, a_t, r_t, s_t1
             loss = tf.reduce_mean(loss)
+        tf.summary.scalar('expected reward', loss, self.episode)
         gradient = gt.gradient(loss, self.brain.trainable_variables)
         self.opt.apply_gradients(zip(gradient, self.brain.trainable_variables))
         del gradient, exp_rew_t, exp_rew_t1, batch
