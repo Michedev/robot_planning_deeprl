@@ -47,7 +47,6 @@ class QAgent:
         grid = tf.Variable(grid.astype('float32'), trainable=False)
         grid = tf.expand_dims(grid, axis=0)
         q_values = self.brain(grid)
-
         q_values = tf.squeeze(q_values)
         epsilon = np.e ** (-0.01 * self.episode)
         if random() > epsilon:
@@ -55,6 +54,10 @@ class QAgent:
         else:
             i = randint(0, 3)
         self._q_value_hat = q_values[i]
+        tf.summary.scalar('q value up', q_values[0], self.episode)
+        tf.summary.scalar('q value down', q_values[1], self.episode)
+        tf.summary.scalar('q value left', q_values[2], self.episode)
+        tf.summary.scalar('q value right', q_values[3], self.episode)
         tf.summary.scalar('expected reward', self._q_value_hat, self.episode)
         tf.summary.scalar('action took', i, self.episode)
         self.experience_buffer[1][self.__i_experience] = i

@@ -7,7 +7,9 @@ MAPS = FOLDER / 'maps'
 os.system('rm -rf robot_logs/')
 g = None
 for file in MAPS.files('*.txt'):
+    print(('=' * 100) + '\n\n')
     print('playing map ', file)
+    print('\n\n' + ('=' * 100))
     if g is None:
         g = Game.from_file(file)
     else:

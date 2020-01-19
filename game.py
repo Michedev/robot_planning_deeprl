@@ -44,7 +44,7 @@ class Game:
                     new_position = position + direction
                     if not self.grid.explored(*new_position):
                         cells_explored += 1
-                    self.grid.explore(*new_position)
+                        self.grid.explore(*new_position)
         return cells_explored
 
     def move(self, direction):
