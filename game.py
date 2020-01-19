@@ -84,6 +84,7 @@ class Game:
     def play_game(self):
         self.agent.reset()
         self.player_position = self.grid.initial_player_position
+        print('\n\n\tDestination is in ' + str(self.grid.destination_position) + '\n\n' + ('-' * 100))
         if self.first_run:
             self.first_run = False
         move_result = -1
