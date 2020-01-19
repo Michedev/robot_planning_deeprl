@@ -31,7 +31,7 @@ class Game:
         p_pos = position + direction
         outofbounds = any(axis < 0 for axis in p_pos) or any(axis >= max_axis for axis, max_axis in zip(p_pos, self.grid.shape))
         if not outofbounds:
-            into_obstacle = self.grid[p_pos].obstacle
+            into_obstacle = self.grid.obstacle(*p_pos)
             return not into_obstacle
         return False
 
@@ -42,9 +42,9 @@ class Game:
                 direction = Point(i, j)
                 if self.is_valid_move(position, direction):
                     new_position = position + direction
-                    if not self.grid[new_position].explored:
+                    if not self.grid.explored(*new_position):
                         cells_explored += 1
-                    self.grid[new_position].explored = True
+                    self.grid.explore(*new_position)
         return cells_explored
 
     def move(self, direction):
@@ -52,9 +52,9 @@ class Game:
         if self.is_valid_move(old_position, direction):
             new_position = old_position + direction
             self.player_position = new_position
-            self.grid[old_position].value = 0
-            self.grid[new_position].value = 2
-            if self.grid[new_position].destination:
+            self.grid.set_player(old_position.x, old_position.y, value=False)
+            self.grid.set_player(new_position.x, new_position.y, value=True)
+            if self.grid.destination(*new_position):
                 return 1, 1
             cells_explored = self.explore_cells(new_position)
             extra = self.calc_extra_reward(cells_explored, new_position, old_position)
@@ -72,7 +72,7 @@ class Game:
         if self.first_turn:
             self.first_turn = False
             self.explore_cells(self.player_position)
-        int_grid = self.grid.as_int(standardize=True)
+        int_grid = self.grid.as_int()
         move = self.agent.decide(int_grid)
         direction = Direction.from_index(move).value
         print('current position', self.player_position, 'direction', direction, sep=' ')
@@ -99,8 +99,6 @@ class Game:
 
     def load_from_file(self, fname):
         self.grid = Grid.from_file(fname)
-
-
 
     def play_games(self, n=1):
         if self.first_run:

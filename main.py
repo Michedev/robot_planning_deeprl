@@ -13,5 +13,5 @@ for file in MAPS.files('*.txt'):
     else:
         g.load_from_file(file)
     g.play_game()
-    g.agent.brain.save('brain', include_optimizer=False)
-    g.agent.brain.save_weights('brain.h5')
+    g.agent.brain.save('brain', include_optimizer=False, save_format='tf')
+    g.agent.brain.save_weights('brain.tf')

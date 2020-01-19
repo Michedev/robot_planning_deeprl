@@ -4,53 +4,28 @@ from enum import Enum
 
 import numpy as np
 
-@dataclass
+
 class Cell:
 
-
-    _value: int
-    explored: bool = False
-
-    def __post_init__(self):
-        """
-        @:param value has the following meaning
-        - -1: Unknown cell
-        - 0: Empty cell
-        - 1: Block cell
-        - 2: Player cell
-        - 3: Destination Cell
-        """
-        if self._value == 2 or self._value == 3:
-            self.explored = True
-        if not self.explored:
-            self.value = -1
-        else:
-            self.value = self._value
-
-    @property
-    def empty(self):
-        return self._value == 0
-
-    @property
-    def obstacle(self):
-        return self._value == 1
-
-    @property
-    def has_player(self):
-        return self._value == 2
-
-    @property
-    def destination(self):
-        return self._value == 3
-
-    def __setattr__(self, key, value):
-        if key == 'explored' and isinstance(value, bool):
-            self.__dict__['explored'] = value
-            if value:
-                self.value = self._value
-        else:
-            super(Cell, self).__setattr__(key, value)
-
+    @classmethod
+    def to_bool_array(cls, value, explored=None):
+        if explored is None:
+            explored = False
+        has_player = False
+        destination = False
+        empty = False
+        obstacle = False
+        if value == 0:
+            empty = True
+        if value == 1:
+            obstacle = True
+        if value == 2:
+            has_player = True
+            explored = True
+        if value == 3:
+            destination = True
+            explored = True
+        return [explored, empty, obstacle, has_player, destination]
 
 
 @dataclass
@@ -87,7 +62,6 @@ class Point:
         distance = abs(other.x - self.x) + abs(other.y - self.y)
         return distance
 
-
     def __getitem__(self, item):
         if item == 0:
             return self.x
@@ -103,7 +77,6 @@ class Direction(Enum):
     Est = Point(1, 0)
     West = Point(-1, 0)
 
-
     @classmethod
     def from_index(cls, i):
         __lst = [cls.North, cls.South, cls.Est, cls.West]
@@ -113,22 +86,13 @@ class Direction(Enum):
 class Grid:
 
     def __init__(self, grid):
-        self.grid = grid
-        self.shape = self.grid.shape
-        self.w, self.h = self.shape
+        self._grid = grid
+        self.shape = list(self._grid.shape)
+        self.w, self.h = self.shape[:2]
+        self.grid = self._public_grid(grid)
 
-    def as_int(self, true_value=False, standardize=False):
-        if true_value:
-            f = lambda c: c._value
-        else:
-            f = lambda c: c.value
-        f = np.vectorize(f, otypes=[np.int8])
-        out = f(self.grid)
-        if standardize:
-            out = out.astype('float32')
-            out -= -1
-            out /= (4 - (-1))
-        return out
+    def as_int(self, standardize=False):
+        return self.grid
 
     @classmethod
     def from_string(cls, string):
@@ -137,15 +101,15 @@ class Grid:
             del lines[-1]
         w = len(lines[0])
         h = len(lines)
-        grid = np.ndarray((w, h), dtype=Cell)
+        grid = np.ndarray((w, h, 5), dtype=np.bool)
         player_position = None
         destination_position = None
         for j, line in enumerate(lines):
             for i, char in enumerate(line):
-                grid[i, j] = Cell(int(char))
-                if grid[i, j].has_player:
+                grid[i, j] = Cell.to_bool_array(int(char))
+                if grid[i, j, 3]:
                     player_position = Point(i, j)
-                if grid[i, j].destination:
+                if grid[i, j, 4]:
                     destination_position = Point(i, j)
         instance = cls(grid)
         instance.destination_position = destination_position
@@ -159,6 +123,44 @@ class Grid:
         return cls.from_string(txt)
 
     def __getitem__(self, item):
-        return self.grid[item[0], item[1]]
+        return self._grid[item[0], item[1]]
 
-    __slots__ = ['destination_position', 'initial_player_position', 'grid', 'w', 'h', 'shape']
+    __slots__ = ['destination_position', 'initial_player_position', '_grid', 'w', 'h', 'shape', 'grid']
+
+    def explore(self, i, j):
+        self.grid[i,j,:] = self._grid[i,j,:]
+
+    def has_player(self, i, j):
+        return self.grid[i, j, 3]
+
+    def explored(self, i, j):
+        return self.grid[i, j, 0]
+
+    def obstacle(self, i, j):
+        return self.grid[i, j, 2]
+
+    def empty(self, i, j):
+        return self.grid[i, j, 1]
+
+    def destination(self, i, j):
+        return self.grid[i, j, 4]
+
+    def set_player(self, i, j, value):
+        if not value:
+            self.grid[i, j, 3] = False
+            self.grid[i, j, 0] = True
+        else:
+            self.grid[i, j, 3] = True
+            self.grid[i, j, 0] = False
+
+
+
+    def _public_grid(self, grid):
+        public_grid = np.zeros(grid.shape, dtype='bool')
+        for i in range(self.w):
+            for j in range(self.h):
+                if grid[i, j, 0]: #i.e. if explored
+                    public_grid[i,j,:] = grid[i,j,:]
+        return public_grid
+
+

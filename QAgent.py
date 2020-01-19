@@ -9,21 +9,12 @@ from path import Path
 from numba import jit, jitclass, njit
 BRAINFOLDER = Path(__file__).parent / 'brain'
 
-class ExperienceReplay(ABC):
-
-    def experience_replay(self, buffer):
-        pass
-
-    @abstractmethod
-    def state_size(self):
-        pass
-
 class QAgent:
 
     def __init__(self, grid_shape, discount_factor=0.85, experience_size=32):
         self.epsilon = 1.0
         self.discount_factor = discount_factor
-        self.grid_shape = list(grid_shape) + [1]
+        self.grid_shape = list(grid_shape)
         if BRAINFOLDER.exists() and BRAINFOLDER.isdir():
             self.brain = tf.keras.models.load_model(BRAINFOLDER)
         else:
@@ -33,11 +24,16 @@ class QAgent:
         self.episode = 1
         self.writer = tf.summary.create_file_writer('robot_logs')
         self.writer.set_as_default()
-        self.experience_buffer = np.zeros((experience_size, 100 * 200 + 1 + 1 + 100 * 200), dtype='float32')
 
         self.__i_experience = 0
         self._curiosity_values = None
         self.experience_size = experience_size
+
+        self.experience_buffer = [np.zeros([self.experience_size] + self.grid_shape, dtype='bool'), #s_t
+                                  np.zeros([self.experience_size], dtype='int8'), #action
+                                  np.zeros([self.experience_size], dtype='float32'), #reward
+                                  np.zeros([self.experience_size] + self.grid_shape, dtype='bool')] #s_t1
+
 
     def brain_section(self, section):
         return self.brain.get_layer(section).trainable_variables
@@ -47,9 +43,9 @@ class QAgent:
             print('learning from the past errors...')
             self.experience_update(self.experience_buffer, self.discount_factor)
             self.__i_experience = 0
+        self.experience_buffer[0][self.__i_experience] = grid
         grid = tf.Variable(grid.astype('float32'), trainable=False)
         grid = tf.expand_dims(grid, axis=0)
-        grid = tf.expand_dims(grid, axis=-1)
         q_values = self.brain(grid)
 
         q_values = tf.squeeze(q_values)
@@ -61,26 +57,24 @@ class QAgent:
         self._q_value_hat = q_values[i]
         tf.summary.scalar('expected reward', self._q_value_hat, self.episode)
         tf.summary.scalar('action took', i, self.episode)
-
-        self.experience_buffer[self.__i_experience, :100*200] = grid.numpy().reshape((-1,))
-        self.experience_buffer[self.__i_experience, 100*200] = i
+        self.experience_buffer[1][self.__i_experience] = i
 
         return i
 
     def get_reward(self, grid, reward, player_position):
-        self.experience_buffer[self.__i_experience, 100*200+1] = reward
-        self.experience_buffer[self.__i_experience, 100*200+2:] = grid.reshape((-1,))
+        self.experience_buffer[2][self.__i_experience] = reward
+        self.experience_buffer[3][self.__i_experience] = grid
+
         tf.summary.scalar('true reward', reward, self.episode)
 
         self.episode += 1
         self.__i_experience += 1
 
     def experience_update(self, batch, discount_factor):
-        batch = tf.squeeze(batch)
-        (s_t, a_t, r_t, s_t1) = batch[:, :100*200], batch[:, 100*200], batch[:, 100*200+1], batch[:, 100*200+2:]
+        (s_t, a_t, r_t, s_t1) = batch
         a_t = tf.cast(a_t, tf.int32)
-        s_t = tf.reshape(s_t, [self.experience_size] + self.grid_shape)
-        s_t1 = tf.reshape(s_t1, [self.experience_size] + self.grid_shape)
+        s_t = tf.cast(s_t, tf.float32)
+        s_t1 = tf.cast(s_t1, tf.float32)
 
         with tf.GradientTape() as gt:
             exp_rew_t = self.brain(s_t)
