@@ -62,8 +62,8 @@ class Game:
         return -1, -1
 
     def calc_extra_reward(self, cells_explored, new_position, prev_position):
-        curr_distance = new_position.euclidean_distance(self.grid.destination_position)
-        prev_distance = prev_position.euclidean_distance(self.grid.destination_position)
+        curr_distance = new_position.manhattan_distance(self.grid.destination_position)
+        prev_distance = prev_position.manhattan_distance(self.grid.destination_position)
         extra_reward = curr_distance / 100 / 200 * sign(prev_distance - curr_distance)
         return extra_reward
 
@@ -76,8 +76,7 @@ class Game:
         direction = Direction.from_index(move).value
         print('current position', self.player_position, 'direction', direction, sep=' ')
         move_result, reward = self.move(direction)
-        standard_reward = reward / 100
-        self.agent.get_reward(self.grid.as_int(standardize=True), standard_reward, self.player_position)
+        self.agent.get_reward(self.grid.as_int(standardize=True), reward, self.player_position)
         print('move_result', move_result, 'current position ', self.player_position, sep=' ')
         return move_result
 

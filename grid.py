@@ -74,11 +74,19 @@ class Point:
 
     def euclidean_distance(self, other: 'Point'):
         if not isinstance(other, Point):
-            raise TypeError(f'Euclidean instance must be calculated between two points instances - '
+            raise TypeError(f'Euclidean distance must be calculated between two points instances - '
                             f'other type is {type(other)}')
         distance = (other.x - self.x) ** 2 + (other.y - self.y) ** 2
         distance = sqrt(distance)
         return distance.real
+
+    def manhattan_distance(self, other: 'Point'):
+        if not isinstance(other, Point):
+            raise TypeError(f'Manhattan distance must be calculated between two points instances - '
+                            f'other type is {type(other)}')
+        distance = abs(other.x - self.x) + abs(other.y - self.y)
+        return distance
+
 
     def __getitem__(self, item):
         if item == 0:

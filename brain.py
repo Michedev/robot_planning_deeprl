@@ -86,7 +86,7 @@ def brain_v1(input_size):
     outputs = inputs
     cortex_output = main_cortex(outputs)
 
-    q_module = q_value_module(cortex_output.output_shape)
+    q_module = q_value_module(cortex_output.shape[1:])
     q_value_est = q_module(cortex_output)
     qnetwork = Model(inputs, q_value_est, name='brain_v1')
 

@@ -21,8 +21,8 @@ class QAgent:
     def __init__(self, grid, discount_factor=0.85, experience_size=8):
         self.epsilon = 1.0
         self.discount_factor = discount_factor
-        input_shape = list(grid.shape) + [1]
-        self.brain = brain_v1(input_shape)  # up / down / right / left
+        self.grid_shape = list(grid.shape) + [1]
+        self.brain = brain_v1(self.grid_shape)  # up / down / right / left
         self._q_value_hat = 0
         self._gradients_1: list = []
         self._gradients_2: list = []
@@ -49,7 +49,6 @@ class QAgent:
         grid = tf.expand_dims(grid, axis=0)
         grid = tf.expand_dims(grid, axis=-1)
         q_values = self.brain(grid)
-        del gt
 
         q_values = tf.squeeze(q_values)
         epsilon = np.e ** (-0.01 * self.episode)
@@ -107,20 +106,17 @@ class QAgent:
 
         # (s_t, a_t, r_t, x_player, y_player, s_t1) = batch[:, :100*200], batch[:, 100*200], batch[:, 100*200+1], batch[:, 100*200+2], batch[:, 100*200+3], batch[:, 100*200+4:]
         a_t = tf.cast(a_t, tf.int32)
-        print(batch)
-        s_t = tf.expand_dims(s_t, -1)
-        s_t1 = tf.expand_dims(s_t1, -1)
-        print(s_t1)
+        s_t = tf.reshape(s_t, [self.experience_size] + self.grid_shape)
+        s_t1 = tf.reshape(s_t1, [self.experience_size] + self.grid_shape)
+
         with tf.GradientTape() as gt:
-            exp_rew_t, curiosity_values = self.brain(s_t)
-            exp_rew_a = tf.zeros((self.experience_size,))
-            for i, a in enumerate(a_t):
-                exp_rew_a[i] = exp_rew_t[i, a]
-            # exp_rew_t = exp_rew_t[:, a_t]
-            exp_rew_t1, _ = self.brain(s_t1)
+            exp_rew_t = self.brain(s_t)
+            exp_rew_t = exp_rew_t.numpy()
+            exp_rew_t = exp_rew_t[:, a_t]
+            exp_rew_t1 = self.brain(s_t1)
             exp_rew_t1 = tf.reduce_max(exp_rew_t1, axis=1)
             # loss = loss_v2(r_t, exp_rew_a, exp_rew_t1, discount_factor, s_t, Point(x_player, y_player), curiosity_values)
-            loss = loss_v1(r_t, exp_rew_a, exp_rew_t1, discount_factor)
+            loss = loss_v1(r_t, exp_rew_t, exp_rew_t1, discount_factor)
 
             del s_t, a_t, r_t, s_t1
             loss = tf.reduce_mean(loss)
