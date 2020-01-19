@@ -5,7 +5,9 @@ import numpy as np
 from random import random, randint
 from brain import *
 from abc import ABC, abstractmethod
+from path import Path
 from numba import jit, jitclass, njit
+BRAINFOLDER = Path(__file__).parent / 'brain'
 
 class ExperienceReplay(ABC):
 
@@ -21,8 +23,11 @@ class QAgent:
     def __init__(self, grid_shape, discount_factor=0.85, experience_size=32):
         self.epsilon = 1.0
         self.discount_factor = discount_factor
-        self.grid_shape = grid_shape
-        self.brain = brain_v1(self.grid_shape)  # up / down / right / left
+        self.grid_shape = list(grid_shape) + [1]
+        if BRAINFOLDER.exists() and BRAINFOLDER.isdir():
+            self.brain = tf.keras.models.load_model(BRAINFOLDER)
+        else:
+            self.brain = brain_v1(self.grid_shape)  # up / down / right / left
         self._q_value_hat = 0
         self.opt = tf.optimizers.SGD(10e-4, 0.7)
         self.episode = 1

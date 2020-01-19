@@ -82,6 +82,8 @@ class Game:
         return move_result
 
     def play_game(self):
+        self.agent.reset()
+        self.player_position = self.grid.initial_player_position
         if self.first_run:
             self.first_run = False
         move_result = -1
@@ -97,7 +99,7 @@ class Game:
 
     def load_from_file(self, fname):
         self.grid = Grid.from_file(fname)
-        self.agent.reset()
+
 
 
     def play_games(self, n=1):
