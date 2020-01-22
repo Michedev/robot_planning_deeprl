@@ -14,6 +14,7 @@ class Game:
         self.min_distance = (self.grid.w * self.grid.h) ** 2
         self.first_run = True
         self.first_turn = True
+        self.turn = 0
 
     @classmethod
     def from_file(cls, grid_fname):
@@ -75,10 +76,11 @@ class Game:
         int_grid = self.grid.as_int()
         move = self.agent.decide(int_grid)
         direction = Direction.from_index(move).value
-        print('current position', self.player_position, 'direction', direction, sep=' ')
         move_result, reward = self.move(direction)
         self.agent.get_reward(self.grid.as_int(standardize=True), reward, self.player_position)
-        print('move_result', move_result, 'current position ', self.player_position, sep=' ')
+        if self.turn % 100 == 0:
+            print('move_result', move_result, 'current position ', self.player_position, sep=' ')
+        self.turn += 1
         return move_result
 
     def play_game(self):
