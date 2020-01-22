@@ -148,12 +148,10 @@ class Grid:
     def set_player(self, i, j, value):
         if not value:
             self.grid[i, j, 3] = False
-            self.grid[i, j, 0] = True
+            self.grid[i, j, 1] = True
         else:
             self.grid[i, j, 3] = True
-            self.grid[i, j, 0] = False
-
-
+            self.grid[i, j, 1] = False
 
     def _public_grid(self, grid):
         public_grid = np.zeros(grid.shape, dtype='bool')
