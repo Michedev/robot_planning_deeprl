@@ -10,9 +10,11 @@ from grid import Point
 def cortex(input_size):
     inputs = Input(input_size)
     outputs = inputs
-    for i in range(5):
-        outputs = Conv2D(32 * min(i+1, 4), kernel_size=3, strides=2)(outputs)
-        outputs = ReLU()(outputs)
+    # for i in range(5):
+    #     outputs = Conv2D(32 * min(i+1, 4), kernel_size=3, strides=2)(outputs)
+    #     outputs = ReLU()(outputs)
+    outputs = Conv2D(512, kernel_size=3, strides=2)(outputs)
+    outputs = ReLU()(outputs)
     outputs = Flatten()(outputs)
     return Model(inputs, outputs, name='main_cortex')
 
@@ -119,7 +121,7 @@ def loss_v1(reward, est_reward, future_est_reward, discount_factor):
 
 
 def q_learning_loss(discount_factor, est_reward, future_est_reward, reward):
-    return tf.losses.mse(reward + discount_factor * future_est_reward, est_reward)
+    return ttf.losses.mse(reward + discount_factor * future_est_reward, est_reward)
 
 
 def loss_v2(reward, est_reward, future_est_reward, discount_factor, state, player_position, curiosity_output):

@@ -11,7 +11,7 @@ BRAINFOLDER = Path(__file__).parent / 'brain'
 
 class QAgent:
 
-    def __init__(self, grid_shape, discount_factor=0.85, experience_size=32):
+    def __init__(self, grid_shape, discount_factor=0.85, experience_size=1024):
         self.epsilon = 1.0
         self.discount_factor = discount_factor
         self.grid_shape = list(grid_shape)
@@ -48,7 +48,7 @@ class QAgent:
         grid = tf.expand_dims(grid, axis=0)
         q_values = self.brain(grid)
         q_values = tf.squeeze(q_values)
-        epsilon = np.e ** (-0.01 * self.episode)
+        epsilon = np.e ** (-0.001 * self.episode)
         if random() > epsilon:
             i = int(tf.argmax(q_values))
         else:
@@ -73,26 +73,32 @@ class QAgent:
         self.episode += 1
         self.__i_experience += 1
 
-    def experience_update(self, batch, discount_factor):
-        (s_t, a_t, r_t, s_t1) = batch
-        a_t = tf.cast(a_t, tf.int32)
-        s_t = tf.cast(s_t, tf.float32)
-        s_t1 = tf.cast(s_t1, tf.float32)
+    def experience_update(self, data, discount_factor):
+        index = np.arange(0, data.shape[0])
+        np.random.shuffle(index)
+        batch_size = 32
+        nbatch = np.ceil(len(index) / batch_size)
+        for i_batch in range(nbatch):
+            is_last = i_batch == nbatch - 1
+            slice_batch = slice(i_batch * batch_size, (i_batch+1) * batch_size if not is_last else None)
+            (s_t, a_t, r_t, s_t1) = [data[i][index[slice_batch]] for i in range(len(data))]
+            a_t = tf.cast(a_t, tf.int32)
+            s_t = tf.cast(s_t, tf.float32)
+            s_t1 = tf.cast(s_t1, tf.float32)
 
-        with tf.GradientTape() as gt:
-            exp_rew_t = self.brain(s_t)
-            exp_rew_t = exp_rew_t.numpy()
-            exp_rew_t = exp_rew_t[:, a_t]
-            exp_rew_t1 = self.brain(s_t1)
-            exp_rew_t1 = tf.reduce_max(exp_rew_t1, axis=1)
-            loss = loss_v1(r_t, exp_rew_t, exp_rew_t1, discount_factor)
-
-            del s_t, a_t, r_t, s_t1
-            loss = tf.reduce_mean(loss)
-        tf.summary.scalar('loss', loss, self.episode)
-        gradient = gt.gradient(loss, self.brain.trainable_variables)
-        self.opt.apply_gradients(zip(gradient, self.brain.trainable_variables))
-        del gradient, exp_rew_t, exp_rew_t1, batch
+            with tf.GradientTape() as gt:
+                exp_rew_t = self.brain.predict(s_t)
+                exp_rew_t = exp_rew_t.numpy()
+                exp_rew_t = exp_rew_t[:, a_t]
+                exp_rew_t1 = self.brain(s_t1)
+                exp_rew_t1 = tf.reduce_max(exp_rew_t1, axis=1)
+                loss = loss_v1(r_t, exp_rew_t, exp_rew_t1, discount_factor)
+                del s_t, a_t, r_t, s_t1
+                loss = tf.reduce_mean(loss)
+            tf.summary.scalar('loss', loss, self.episode)
+            gradient = gt.gradient(loss, self.brain.trainable_variables)
+            self.opt.apply_gradients(zip(gradient, self.brain.trainable_variables))
+            del gradient, exp_rew_t, exp_rew_t1
 
     def reset(self):
         self.__i_experience = 0
