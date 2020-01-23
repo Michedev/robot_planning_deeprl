@@ -10,11 +10,10 @@ from grid import Point
 def cortex(input_size):
     inputs = Input(input_size)
     outputs = inputs
-    # for i in range(5):
-    #     outputs = Conv2D(32 * min(i+1, 4), kernel_size=3, strides=2)(outputs)
-    #     outputs = ReLU()(outputs)
-    outputs = Conv2D(512, kernel_size=3, strides=2)(outputs)
-    outputs = ReLU()(outputs)
+    for i in range(5):
+        outputs = Conv2D(32 * (i+i), kernel_size=3, strides=2)(outputs)
+        output = BatchNormalization()(outputs)
+        outputs = ReLU()(outputs)
     outputs = Flatten()(outputs)
     return Model(inputs, outputs, name='main_cortex')
 
@@ -24,10 +23,10 @@ def q_value_module(input_shape):
     inputs = Input(input_shape)
     outputs = inputs
     outputs = Dense(nmoves * 3)(outputs)
-    outputs = BatchNormalization(trainable=False)(outputs)
+    outputs = BatchNormalization()(outputs)
     outputs = ReLU()(outputs)
     outputs = Dense(nmoves * 3)(outputs)
-    outputs = BatchNormalization(trainable=False)(outputs)
+    outputs = BatchNormalization()(outputs)
     outputs = ReLU()(outputs)
     outputs = Dense(nmoves, activation='sigmoid')(outputs)
     outputs = tf.multiply(outputs, 2);
@@ -121,7 +120,7 @@ def loss_v1(reward, est_reward, future_est_reward, discount_factor):
 
 
 def q_learning_loss(discount_factor, est_reward, future_est_reward, reward):
-    return ttf.losses.mse(reward + discount_factor * future_est_reward, est_reward)
+    return tf.square((reward + discount_factor * future_est_reward) - est_reward)
 
 
 def loss_v2(reward, est_reward, future_est_reward, discount_factor, state, player_position, curiosity_output):

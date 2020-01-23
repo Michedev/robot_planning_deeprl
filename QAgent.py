@@ -1,3 +1,5 @@
+from math import ceil
+
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import *
 import tensorflow as tf
@@ -12,7 +14,6 @@ BRAINFOLDER = Path(__file__).parent / 'brain'
 class QAgent:
 
     def __init__(self, grid_shape, discount_factor=0.85, experience_size=1024):
-        self.epsilon = 1.0
         self.discount_factor = discount_factor
         self.grid_shape = list(grid_shape)
         if BRAINFOLDER.exists() and BRAINFOLDER.isdir():
@@ -21,7 +22,7 @@ class QAgent:
             self.brain = brain_v1(self.grid_shape)  # up / down / right / left
         self._q_value_hat = 0
         self.opt = tf.optimizers.SGD(10e-4, 0.7)
-        self.episode = 1
+        self.episode = 0
         self.writer = tf.summary.create_file_writer('robot_logs')
         self.writer.set_as_default()
 
@@ -74,31 +75,32 @@ class QAgent:
         self.__i_experience += 1
 
     def experience_update(self, data, discount_factor):
-        index = np.arange(0, data.shape[0])
-        np.random.shuffle(index)
-        batch_size = 32
-        nbatch = np.ceil(len(index) / batch_size)
-        for i_batch in range(nbatch):
-            is_last = i_batch == nbatch - 1
-            slice_batch = slice(i_batch * batch_size, (i_batch+1) * batch_size if not is_last else None)
-            (s_t, a_t, r_t, s_t1) = [data[i][index[slice_batch]] for i in range(len(data))]
-            a_t = tf.cast(a_t, tf.int32)
-            s_t = tf.cast(s_t, tf.float32)
-            s_t1 = tf.cast(s_t1, tf.float32)
+        for e in range(10):
+            index = np.arange(0, self.experience_size)
+            np.random.shuffle(index)
+            batch_size = 64
+            nbatch = ceil(len(index) / batch_size)
+            for i_batch in range(nbatch):
+                is_last = i_batch == nbatch - 1
+                slice_batch = slice(i_batch * batch_size, (i_batch+1) * batch_size if not is_last else None)
+                (s_t, a_t, r_t, s_t1) = [data[i][index[slice_batch]] for i in range(len(data))]
+                a_t = tf.cast(a_t, tf.int32)
+                s_t = tf.cast(s_t, tf.float32)
+                s_t1 = tf.cast(s_t1, tf.float32)
 
-            with tf.GradientTape() as gt:
-                exp_rew_t = self.brain.predict(s_t)
-                exp_rew_t = exp_rew_t.numpy()
-                exp_rew_t = exp_rew_t[:, a_t]
-                exp_rew_t1 = self.brain(s_t1)
-                exp_rew_t1 = tf.reduce_max(exp_rew_t1, axis=1)
-                loss = loss_v1(r_t, exp_rew_t, exp_rew_t1, discount_factor)
-                del s_t, a_t, r_t, s_t1
-                loss = tf.reduce_mean(loss)
-            tf.summary.scalar('loss', loss, self.episode)
-            gradient = gt.gradient(loss, self.brain.trainable_variables)
-            self.opt.apply_gradients(zip(gradient, self.brain.trainable_variables))
-            del gradient, exp_rew_t, exp_rew_t1
+                with tf.GradientTape() as gt:
+                    exp_rew_t = self.brain(s_t)
+                    exp_rew_t = exp_rew_t.numpy()
+                    exp_rew_t = exp_rew_t[:, a_t]
+                    exp_rew_t1 = self.brain(s_t1)
+                    exp_rew_t1 = tf.reduce_max(exp_rew_t1, axis=1)
+                    loss = loss_v1(r_t, exp_rew_t, exp_rew_t1, discount_factor)
+                    del s_t, a_t, r_t, s_t1
+                    loss = tf.reduce_mean(loss)
+                tf.summary.scalar('loss', loss, self.episode)
+                gradient = gt.gradient(loss, self.brain.trainable_variables)
+                self.opt.apply_gradients(zip(gradient, self.brain.trainable_variables))
+                del gradient, exp_rew_t, exp_rew_t1
 
     def reset(self):
         self.__i_experience = 0
