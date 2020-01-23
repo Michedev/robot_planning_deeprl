@@ -7,7 +7,7 @@ from numpy import sign
 class Game:
 
     def __init__(self, grid_string):
-        self.grid_string = grid_string
+        # self.grid_string = grid_string
         self.grid = Grid.from_string(grid_string)
         self.agent = QAgent(self.grid.shape)
         self.player_position = self.grid.initial_player_position

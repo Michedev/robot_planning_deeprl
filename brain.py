@@ -10,9 +10,8 @@ from grid import Point
 def cortex(input_size):
     inputs = Input(input_size)
     outputs = inputs
-    for i in range(5):
+    for i in range(1):
         outputs = Conv2D(32 * (i+i), kernel_size=3, strides=2)(outputs)
-        output = BatchNormalization()(outputs)
         outputs = ReLU()(outputs)
     outputs = Flatten()(outputs)
     return Model(inputs, outputs, name='main_cortex')
@@ -22,15 +21,15 @@ def q_value_module(input_shape):
     nmoves = 4
     inputs = Input(input_shape)
     outputs = inputs
-    outputs = Dense(nmoves * 3)(outputs)
-    outputs = BatchNormalization()(outputs)
+    outputs = Dense(nmoves * 6)(outputs)
+    outputs = BatchNormalization(trainable=False, scale=False)(outputs)
     outputs = ReLU()(outputs)
     outputs = Dense(nmoves * 3)(outputs)
-    outputs = BatchNormalization()(outputs)
+    outputs = BatchNormalization(trainable=False, scale=False)(outputs)
     outputs = ReLU()(outputs)
     outputs = Dense(nmoves, activation='sigmoid')(outputs)
-    outputs = tf.multiply(outputs, 2);
-    outputs = tf.subtract(outputs, 2)  # map into [-1, 1]
+    outputs = tf.multiply(outputs, 2.0)
+    outputs = tf.subtract(outputs, 1.0)  # map into [-1, 1]
     return Model(inputs, outputs, name='q_values_module')
 
 
