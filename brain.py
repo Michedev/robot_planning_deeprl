@@ -31,7 +31,7 @@ def q_value_module(input_shape):
     outputs = ReLU()(outputs)
     outputs = Dense(nmoves, activation='sigmoid')(outputs)
     outputs = tf.multiply(outputs, 2);
-    outputs = tf.subtract(outputs, 2)  # map into [-1, 1]
+    outputs = tf.subtract(outputs, 1)  # map into [-1, 1]
     return Model(inputs, outputs, name='q_values_module')
 
 
@@ -121,7 +121,7 @@ def loss_v1(reward, est_reward, future_est_reward, discount_factor):
 
 
 def q_learning_loss(discount_factor, est_reward, future_est_reward, reward):
-    return ttf.losses.mse(reward + discount_factor * future_est_reward, est_reward)
+    return tf.losses.mse(reward + discount_factor * future_est_reward, est_reward)
 
 
 def loss_v2(reward, est_reward, future_est_reward, discount_factor, state, player_position, curiosity_output):

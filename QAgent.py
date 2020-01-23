@@ -20,7 +20,7 @@ class QAgent:
         else:
             self.brain = brain_v1(self.grid_shape)  # up / down / right / left
         self._q_value_hat = 0
-        self.opt = tf.optimizers.SGD(10e-4, 0.7)
+        self.opt = tf.optimizers.SGD(10e-4, 0.9)
         self.episode = 1
         self.writer = tf.summary.create_file_writer('robot_logs')
         self.writer.set_as_default()
@@ -74,10 +74,11 @@ class QAgent:
         self.__i_experience += 1
 
     def experience_update(self, data, discount_factor):
-        index = np.arange(0, data.shape[0])
+        index = np.arange(0, self.experience_size)
         np.random.shuffle(index)
         batch_size = 32
         nbatch = np.ceil(len(index) / batch_size)
+        nbatch = int(nbatch)
         for i_batch in range(nbatch):
             is_last = i_batch == nbatch - 1
             slice_batch = slice(i_batch * batch_size, (i_batch+1) * batch_size if not is_last else None)
@@ -87,7 +88,7 @@ class QAgent:
             s_t1 = tf.cast(s_t1, tf.float32)
 
             with tf.GradientTape() as gt:
-                exp_rew_t = self.brain.predict(s_t)
+                exp_rew_t = self.brain(s_t)
                 exp_rew_t = exp_rew_t.numpy()
                 exp_rew_t = exp_rew_t[:, a_t]
                 exp_rew_t1 = self.brain(s_t1)
