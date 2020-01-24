@@ -7,7 +7,9 @@ from brain import *
 from abc import ABC, abstractmethod
 from path import Path
 from numba import jit, jitclass, njit
+
 BRAINFOLDER = Path(__file__).parent / 'brain'
+
 
 class QAgent:
 
@@ -31,11 +33,10 @@ class QAgent:
         self._curiosity_values = None
         self.experience_size = experience_size
 
-        self.experience_buffer = [np.zeros([self.experience_size] + self.grid_shape, dtype='bool'), #s_t
-                                  np.zeros([self.experience_size], dtype='int8'), #action
-                                  np.zeros([self.experience_size], dtype='float32'), #reward
-                                  np.zeros([self.experience_size] + self.grid_shape, dtype='bool')] #s_t1
-
+        self.experience_buffer = [np.zeros([self.experience_size] + self.grid_shape, dtype='bool'),  # s_t
+                                  np.zeros([self.experience_size], dtype='int8'),  # action
+                                  np.zeros([self.experience_size], dtype='float32'),  # reward
+                                  np.zeros([self.experience_size] + self.grid_shape, dtype='bool')]  # s_t1
 
     def brain_section(self, section):
         return self.brain.get_layer(section).trainable_variables
@@ -85,7 +86,7 @@ class QAgent:
         nbatch = int(nbatch)
         for i_batch in range(nbatch):
             is_last = i_batch == nbatch - 1
-            slice_batch = slice(i_batch * batch_size, ((i_batch+1) * batch_size if not is_last else None))
+            slice_batch = slice(i_batch * batch_size, ((i_batch + 1) * batch_size if not is_last else None))
             (s_t, a_t, r_t, s_t1) = [data[i][index[slice_batch]] for i in range(len(data))]
             a_t = tf.cast(a_t, tf.int32)
             s_t = tf.cast(s_t, tf.float32)
@@ -107,5 +108,3 @@ class QAgent:
 
     def reset(self):
         self.__i_experience = 0
-
-
