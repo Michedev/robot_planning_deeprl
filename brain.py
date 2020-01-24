@@ -13,6 +13,7 @@ def cortex(input_size):
     for i in range(5):
         outputs = Conv2D(32 * (i + 2), kernel_size=3, strides=2)(outputs)
         outputs = ReLU()(outputs)
+    outputs = Flatten()(outputs)
     return Model(inputs, outputs, name='main_cortex')
 
 
