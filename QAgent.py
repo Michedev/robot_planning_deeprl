@@ -11,7 +11,8 @@ BRAINFOLDER = Path(__file__).parent / 'brain'
 
 class QAgent:
 
-    def __init__(self, grid_shape, discount_factor=0.85, experience_size=1024):
+    def __init__(self, grid_shape, discount_factor=0.85, experience_size=128, update_q_fut=1000):
+        self.update_q_fut = update_q_fut
         self.epsilon = 1.0
         self.discount_factor = discount_factor
         self.grid_shape = list(grid_shape)
@@ -19,6 +20,7 @@ class QAgent:
             self.brain = tf.keras.models.load_model(BRAINFOLDER)
         else:
             self.brain = brain_v1(self.grid_shape)  # up / down / right / left
+        self.q_future = tf.keras.models.clone_model(self.brain)
         self._q_value_hat = 0
         self.opt = tf.optimizers.SGD(10e-4, 0.9)
         self.episode = 1
@@ -67,6 +69,8 @@ class QAgent:
     def get_reward(self, grid, reward, player_position):
         self.experience_buffer[2][self.__i_experience] = reward
         self.experience_buffer[3][self.__i_experience] = grid
+        if self.episode % 1000 == 0 and self.episode > 0:
+            self.q_future = tf.keras.models.clone_model(self.brain)
 
         tf.summary.scalar('true reward', reward, self.episode)
 
@@ -91,7 +95,7 @@ class QAgent:
                 exp_rew_t = self.brain(s_t)
                 exp_rew_t = exp_rew_t.numpy()
                 exp_rew_t = exp_rew_t[:, a_t]
-                exp_rew_t1 = self.brain(s_t1)
+                exp_rew_t1 = self.q_future(s_t1)
                 exp_rew_t1 = tf.reduce_max(exp_rew_t1, axis=1)
                 loss = loss_v1(r_t, exp_rew_t, exp_rew_t1, discount_factor)
                 del s_t, a_t, r_t, s_t1
