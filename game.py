@@ -60,7 +60,7 @@ class Game:
             cells_explored = self.explore_cells(new_position)
             extra = self.calc_extra_reward(cells_explored, new_position, old_position)
             return 0, extra
-        return -0.1, -1
+        return -1, -0.1
 
     def calc_extra_reward(self, cells_explored, new_position, prev_position):
         curr_distance = new_position.manhattan_distance(self.grid.destination_position)
