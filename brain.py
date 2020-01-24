@@ -7,12 +7,30 @@ from random import random, randint
 from grid import Point
 
 
+def squeeze_excite_block(tensor, ratio=16):
+    init = tensor
+    channel_axis = -1
+    filters = init.shape[channel_axis]
+    se_shape = (1, 1, filters)
+
+    se = GlobalAveragePooling2D()(init)
+    se = Reshape(se_shape)(se)
+    se = Dense(filters // ratio, activation='relu', kernel_initializer='he_normal', use_bias=False)(se)
+    se = Dense(filters, activation='sigmoid', kernel_initializer='he_normal', use_bias=False)(se)
+
+    x = multiply([init, se])
+    return x
+
+
 def cortex(input_size):
     inputs = Input(input_size)
     outputs = inputs
-    for i in range(5):
+    for i in range(3):
         outputs = Conv2D(32 * (i + 2), kernel_size=3, strides=2)(outputs)
-        outputs = ReLU()(outputs)
+        if i == 0:
+            outputs = squeeze_excite_block(outputs)
+        else:
+            outputs = ReLU()(outputs)
     outputs = Flatten()(outputs)
     return Model(inputs, outputs, name='main_cortex')
 
