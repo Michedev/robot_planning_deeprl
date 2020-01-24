@@ -93,8 +93,8 @@ class QAgent:
 
             with tf.GradientTape() as gt:
                 exp_rew_t = self.brain(s_t)
-                exp_rew_t = exp_rew_t.numpy()
-                exp_rew_t = exp_rew_t[:, a_t]
+                exp_rew_t = exp_rew_t * tf.one_hot(a_t, depth=4)
+                exp_rew_t = tf.reduce_max(exp_rew_t, axis=1)
                 exp_rew_t1 = self.q_future(s_t1)
                 exp_rew_t1 = tf.reduce_max(exp_rew_t1, axis=1)
                 loss = loss_v1(r_t, exp_rew_t, exp_rew_t1, discount_factor)
