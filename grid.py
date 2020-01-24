@@ -99,14 +99,16 @@ class Grid:
         lines = string.split('\n')
         if not lines[-1]:
             del lines[-1]
-        w = len(lines[0])
-        h = len(lines)
+        w = len(lines[0]) + 2
+        h = len(lines) + 2
         grid = np.ndarray((w, h, 5), dtype=np.bool)
         player_position = None
         destination_position = None
         for j, line in enumerate(lines):
             for i, char in enumerate(line):
                 grid[i, j] = Cell.to_bool_array(int(char))
+                if i == 0 or i == h - 1 or j == 0 or j == w - 1: #wrap around the map with obstacles
+                    grid[i, j, :] = [True, False, True, False, False]
                 if grid[i, j, 3]:
                     player_position = Point(i, j)
                 if grid[i, j, 4]:

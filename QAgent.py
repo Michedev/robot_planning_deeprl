@@ -85,7 +85,7 @@ class QAgent:
         nbatch = int(nbatch)
         for i_batch in range(nbatch):
             is_last = i_batch == nbatch - 1
-            slice_batch = slice(i_batch * batch_size, (i_batch+1) * batch_size if not is_last else None)
+            slice_batch = slice(i_batch * batch_size, ((i_batch+1) * batch_size if not is_last else None))
             (s_t, a_t, r_t, s_t1) = [data[i][index[slice_batch]] for i in range(len(data))]
             a_t = tf.cast(a_t, tf.int32)
             s_t = tf.cast(s_t, tf.float32)
