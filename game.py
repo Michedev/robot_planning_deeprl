@@ -95,6 +95,7 @@ class Game:
         while move_result != 1:
             move_result = self.run_turn()
             counter_moves += 1
+        self.agent.on_win()
         print('=' * 100)
         print(f'\n\tmoves to reach destination: {counter_moves}')
         print('=' * 100)
@@ -102,16 +103,3 @@ class Game:
 
     def load_from_file(self, fname):
         self.grid = Grid.from_file(fname)
-
-    def play_games(self, n=1):
-        if self.first_run:
-            self.first_run = False
-        else:
-            self.grid = Grid.from_string(self.grid_string)
-            self.player_position = self.grid.initial_player_position
-            self.min_distance = (self.grid.w * self.grid.h) ** 2
-        for i in range(n):
-            moves = self.play_game()
-            print('='*100)
-            print(f'\n\tmoves to reach destination: {moves}')
-            print('='*100)
