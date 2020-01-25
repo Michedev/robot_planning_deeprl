@@ -9,9 +9,16 @@ os.system('rm -rf robot_logs/')
 g = None
 maps = MAPS.files('*.txt')
 seed(13)
+first = True
 for round in range(100):
-    shuffle(maps)
+    if first:
+        maps = sorted(maps)
+        first = False
+    else:
+        shuffle(maps)
     for file in maps:
+        if 'medium' in file:
+            continue
         print(('=' * 100) + '\n\n')
         print('playing map ', file)
         print('\n\n' + ('=' * 100))
