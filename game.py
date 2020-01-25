@@ -1,6 +1,5 @@
 from QAgent import QAgent
-from grid import Direction, Point, Grid
-from numba import jit, njit
+from grid import *
 from numpy import sign
 
 
@@ -78,8 +77,6 @@ class Game:
         direction = Direction.from_index(move).value
         move_result, reward = self.move(direction)
         self.agent.get_reward(self.grid.as_int(standardize=True), reward, self.player_position)
-        if self.turn % 100 == 0:
-            print('move_result', move_result, 'current position ', self.player_position, sep=' ')
         self.turn += 1
         return move_result
 

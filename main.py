@@ -9,7 +9,7 @@ os.system('rm -rf robot_logs/')
 g = None
 maps = MAPS.files('*.txt')
 seed(13)
-for round in range(4_000):
+for round in range(100):
     shuffle(maps)
     for file in maps:
         print(('=' * 100) + '\n\n')
