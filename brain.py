@@ -32,18 +32,6 @@ def cortex(input_size):
             outputs = squeeze_excite_block(outputs)
     outputs = Flatten()(outputs)
 
-    flatten_input = Flatten()(inputs)
-    outputs_dense = Dense(1024)(flatten_input)
-    outputs_dense = BatchNormalization(trainable=False)(outputs_dense)
-    outputs_dense = ReLU()(outputs_dense)
-    outputs_dense = Dense(512)(outputs_dense)
-    outputs_dense = BatchNormalization(trainable=False)(outputs_dense)
-    outputs_dense = ReLU()(outputs_dense)
-    outputs_dense = Dense(128)(outputs_dense)
-    outputs_dense = BatchNormalization(trainable=False)(outputs_dense)
-    outputs_dense = ReLU()(outputs_dense)
-
-    outputs = Concatenate()([outputs, outputs_dense])
     return Model(inputs, outputs, name='main_cortex')
 
 
@@ -67,7 +55,7 @@ def curiosity_model(input_shape):
     """
     inputs = Input(input_shape)
     outputs = inputs
-    output_size = 5 * 8  # type cells * number of cells around
+    output_size = 4 * 4  # type cells * number of cells around
     outputs = Dense(output_size * 2)(outputs)
     outputs = BatchNormalization(trainable=False)(outputs)
     outputs = ReLU()(outputs)
@@ -75,7 +63,7 @@ def curiosity_model(input_shape):
     outputs = BatchNormalization(trainable=False)(outputs)
     outputs = ReLU()(outputs)
     outputs = Dense(output_size)(outputs)
-    outputs = Reshape((8, 5))(outputs)
+    outputs = Reshape((4,4))(outputs)
     outputs = tf.keras.activations.softmax(outputs, 1)
     return Model(inputs, outputs, name='curiosity_module')
 
@@ -85,10 +73,7 @@ def _outofbounds(state, position):
            any(axis >= max_axis for axis, max_axis in zip(position, state.shape))
 
 
-def curiosity_loss(state, player_position, output_model):
-    ohe_matrix = np.eye(5)
-    player_neightbours = get_player_neightbours(player_position, state)
-    ohe_matrix = ohe_matrix[(player_neightbours * 4).astype('int')]
+def curiosity_loss(ohe_matrix, output_model):
     loss = tf.reduce_sum(tf.losses.categorical_crossentropy(ohe_matrix, output_model), axis=-1)
     return loss
 
@@ -131,12 +116,13 @@ def brain_v2(input_size):
     main_cortex = cortex(input_size)
     outputs = inputs
     cortex_output = main_cortex(outputs)
-    cortex_output = Concatenate()([cortex_output, loc_input])
 
     print(cortex_output.shape)
 
     q_module = q_value_module(cortex_output.shape[1:])
     q_value_est = q_module(cortex_output)
+    q_value_est = Concatenate()([q_value_est, loc_input])
+    q_value_est = Dense(4)(q_value_est)
 
     curiosity = curiosity_model(cortex_output.shape[1:])
     curiosity_output = curiosity(cortex_output)
@@ -156,6 +142,6 @@ def q_learning_loss(discount_factor, est_reward, future_est_reward, reward):
     return tf.losses.mse(reward + discount_factor * future_est_reward, est_reward)
 
 
-def loss_v2(reward, est_reward, future_est_reward, discount_factor, state, player_position, curiosity_output):
+def loss_v2(reward, est_reward, future_est_reward, discount_factor, neightbours, curiosity_output):
     return q_learning_loss(discount_factor, est_reward, future_est_reward, reward) + \
-           curiosity_loss(state, player_position, curiosity_output)
+           curiosity_loss(neightbours, curiosity_output)

@@ -25,7 +25,7 @@ class QAgent:
         self.epsilon = 1.0
         self.discount_factor = discount_factor
         self.grid_shape = list(grid_shape)
-        self.brain = brain_v1(self.grid_shape)  # up / down / right / left
+        self.brain = brain_v2(self.grid_shape)  # up / down / right / left
         if BRAINFILEINDEX.exists():
             self.brain.load_weights(BRAINFILE)
         self.q_future = tf.keras.models.clone_model(self.brain)
@@ -79,7 +79,7 @@ class QAgent:
         grid = tf.Variable(grid.astype('float32'), trainable=False)
         extradata = self.extra_features(grid, my_pos, destination_pos)
         grid = tf.expand_dims(grid, axis=0)
-        q_values = self.brain([grid, extradata])
+        q_values, _ = self.brain([grid, extradata])
         q_values = tf.squeeze(q_values)
         if random() > self.epsilon:
             i = int(tf.argmax(q_values))
@@ -139,12 +139,12 @@ class QAgent:
                 s_t = tf.cast(s_t, tf.float32)
                 s_t1 = tf.cast(s_t1, tf.float32)
                 with tf.GradientTape() as gt:
-                    exp_rew_t = self.brain([s_t, extra_t])
+                    exp_rew_t, est_extra = self.brain([s_t, extra_t])
                     exp_rew_t = exp_rew_t * tf.one_hot(a_t, depth=4)
                     exp_rew_t = tf.reduce_max(exp_rew_t, axis=1)
-                    exp_rew_t1 = self.q_future([s_t1, extra_t1])
+                    exp_rew_t1, _ = self.q_future([s_t1, extra_t1])
                     exp_rew_t1 = tf.reduce_max(exp_rew_t1, axis=1)
-                    loss = loss_v1(r_t, exp_rew_t, exp_rew_t1, discount_factor)
+                    loss = loss_v2(r_t, exp_rew_t, exp_rew_t1, discount_factor, tf.reshape(extra_t1[-16:], (4,4)), est_extra)
                     del s_t, a_t, r_t, s_t1
                     loss = tf.reduce_mean(loss)
                 tf.summary.scalar('loss', loss, self.step)
