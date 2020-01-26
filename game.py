@@ -76,6 +76,8 @@ class Game:
         move = self.agent.decide(int_grid, self.player_position, self.grid.destination_position)
         direction = Direction.from_index(move).value
         move_result, reward = self.move(direction)
+        if self.turn % 100 == 0:
+            print('Move result ', move_result, 'Player pos: ', self.player_position)
         self.agent.get_reward(self.grid.as_int(standardize=True), reward, self.player_position)
         self.turn += 1
         return move_result

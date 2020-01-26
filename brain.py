@@ -21,14 +21,29 @@ def squeeze_excite_block(tensor, ratio=16):
     x = multiply([init, se])
     return x
 
+
 def cortex(input_size):
     inputs = Input(input_size)
     outputs = inputs
-    for i in range(4):
+    for i in range(3):
         outputs = Conv2D(32 * (i + 4), kernel_size=3, strides=2)(outputs)
         outputs = ReLU()(outputs)
-        outputs = squeeze_excite_block(outputs)
+        if i == 0:
+            outputs = squeeze_excite_block(outputs)
     outputs = Flatten()(outputs)
+
+    flatten_input = Flatten()(inputs)
+    outputs_dense = Dense(1024)(flatten_input)
+    outputs_dense = BatchNormalization(trainable=False)(outputs_dense)
+    outputs_dense = ReLU()(outputs_dense)
+    outputs_dense = Dense(512)(outputs_dense)
+    outputs_dense = BatchNormalization(trainable=False)(outputs_dense)
+    outputs_dense = ReLU()(outputs_dense)
+    outputs_dense = Dense(128)(outputs_dense)
+    outputs_dense = BatchNormalization(trainable=False)(outputs_dense)
+    outputs_dense = ReLU()(outputs_dense)
+
+    outputs = Concatenate()([outputs, outputs_dense])
     return Model(inputs, outputs, name='main_cortex')
 
 
@@ -36,10 +51,10 @@ def q_value_module(input_shape):
     nmoves = 4
     inputs = Input(input_shape)
     outputs = inputs
-    outputs = Dense(32)(outputs)
+    outputs = Dense(512)(outputs)
     outputs = BatchNormalization(trainable=False)(outputs)
     outputs = ReLU()(outputs)
-    outputs = Dense(32)(outputs)
+    outputs = Dense(512)(outputs)
     outputs = BatchNormalization(trainable=False)(outputs)
     outputs = ReLU()(outputs)
     outputs = Dense(nmoves)(outputs)
@@ -95,15 +110,16 @@ def get_player_neightbours(player_position, state):
 
 def brain_v1(input_size):
     inputs = Input(input_size)
-    loc_input = Input(2 + 2 + 4 * 4) #mypos, destination pos, blocks around
+    loc_input = Input(2 + 2 + 4 * 4)  # mypos, destination pos, blocks around
 
     main_cortex = cortex(input_size)
     outputs = inputs
     cortex_output = main_cortex(outputs)
-    cortex_output = Concatenate()([cortex_output, loc_input])
 
     q_module = q_value_module(cortex_output.shape[1:])
     q_value_est = q_module(cortex_output)
+    q_value_est = Concatenate()([q_value_est, loc_input])
+    q_value_est = Dense(4)(q_value_est)
     qnetwork = Model([inputs, loc_input], q_value_est, name='brain_v1')
 
     return qnetwork
@@ -111,7 +127,7 @@ def brain_v1(input_size):
 
 def brain_v2(input_size):
     inputs = Input(input_size)
-    loc_input = Input(2 + 2 + 4 * 4) #mypos, destination pos, blocks around
+    loc_input = Input(2 + 2 + 4 * 4)  # mypos, destination pos, blocks around
     main_cortex = cortex(input_size)
     outputs = inputs
     cortex_output = main_cortex(outputs)
