@@ -142,11 +142,15 @@ class QAgent:
                     exp_rew_t = tf.reduce_max(exp_rew_t, axis=1)
                     exp_rew_t1, _ = self.q_future([s_t1, extra_t1])
                     exp_rew_t1 = tf.reduce_max(exp_rew_t1, axis=1)
-                    loss = loss_v2(r_t, exp_rew_t, exp_rew_t1, discount_factor, n_t1, est_extra)
+                    qloss, closs = loss_v2(r_t, exp_rew_t, exp_rew_t1, discount_factor, n_t1, est_extra)
+                    loss = qloss + closs
                     del s_t, a_t, r_t, s_t1
                     loss = tf.reduce_mean(loss, axis=0)
                     loss = tf.reduce_sum(loss)
-                tf.summary.scalar('loss', loss, self.step)
+                tf.summary.scalar('q loss', loss, self.step)
+                tf.summary.scalar('curiosity loss', closs, self.step)
+                tf.summary.scalar('total loss', loss, self.step)
+
                 gradient = gt.gradient(loss, self.brain.trainable_variables)
                 if self.step % 100 == 0:
                     for l, g in zip(self.brain.trainable_variables, gradient):

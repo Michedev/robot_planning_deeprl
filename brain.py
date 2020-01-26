@@ -141,5 +141,4 @@ def q_learning_loss(discount_factor, est_reward, future_est_reward, reward):
 
 
 def loss_v2(reward, est_reward, future_est_reward, discount_factor, neightbours, curiosity_output):
-    return q_learning_loss(discount_factor, est_reward, future_est_reward, reward) + \
-           curiosity_loss(neightbours, curiosity_output)
+    return q_learning_loss(discount_factor, est_reward, future_est_reward, reward), curiosity_loss(neightbours, curiosity_output)
