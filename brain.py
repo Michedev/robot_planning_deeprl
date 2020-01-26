@@ -25,11 +25,9 @@ def squeeze_excite_block(tensor, ratio=16):
 def cortex(input_size):
     inputs = Input(input_size)
     outputs = inputs
-    for i in range(3):
-        outputs = Conv2D(32 * (i + 4), kernel_size=3, strides=2)(outputs)
+    for i in range(2):
+        outputs = Conv2D(32 ** (i + 1), kernel_size=3, strides=2)(outputs)
         outputs = ReLU()(outputs)
-        if i == 0:
-            outputs = squeeze_excite_block(outputs)
     outputs = Flatten()(outputs)
 
     return Model(inputs, outputs, name='main_cortex')

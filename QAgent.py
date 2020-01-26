@@ -59,13 +59,14 @@ class QAgent:
         result = np.zeros(2 + 2 + 4 * 4)
         w, h = grid.shape[1:3]
         result[:2] = [my_pos[0] / w, my_pos[1] / h]
-        result[2:4] = [destination_pos[0] / w, destination_pos[1] / h]
+        result[2:4] = [(destination_pos[0] - my_pos[0]) / w, (destination_pos[1] - my_pos[1]) / h]
         i = 0
         for direction in [Direction.North, Direction.South, Direction.Est, Direction.West]:
             val_direction = direction.value
             n_pos = my_pos + val_direction
             cell_type = grid[n_pos.x, n_pos.y, 1:]
             result[4 + i * 4: 4 + (i + 1) * 4] = cell_type
+            i += 1
         result = np.expand_dims(result, axis=0)
         return result
 
@@ -116,11 +117,7 @@ class QAgent:
             del self.q_future
             gc.collect()
             self.q_future = tf.keras.models.clone_model(self.brain)
-            for l in self.brain.trainable_variables:
-                tf.summary.histogram(l.name, l, self.step)
-
         tf.summary.scalar('true reward', reward, self.step)
-
         self.step += 1
         self.__i_experience += 1
 
@@ -138,20 +135,23 @@ class QAgent:
                 a_t = tf.cast(a_t, tf.int32)
                 s_t = tf.cast(s_t, tf.float32)
                 s_t1 = tf.cast(s_t1, tf.float32)
+                n_t1 = tf.reshape(extra_t1[:, -16:], (-1, 4,4))
                 with tf.GradientTape() as gt:
                     exp_rew_t, est_extra = self.brain([s_t, extra_t])
                     exp_rew_t = exp_rew_t * tf.one_hot(a_t, depth=4)
                     exp_rew_t = tf.reduce_max(exp_rew_t, axis=1)
                     exp_rew_t1, _ = self.q_future([s_t1, extra_t1])
                     exp_rew_t1 = tf.reduce_max(exp_rew_t1, axis=1)
-                    loss = loss_v2(r_t, exp_rew_t, exp_rew_t1, discount_factor, tf.reshape(extra_t1[-16:], (4,4)), est_extra)
+                    loss = loss_v2(r_t, exp_rew_t, exp_rew_t1, discount_factor, n_t1, est_extra)
                     del s_t, a_t, r_t, s_t1
-                    loss = tf.reduce_mean(loss)
+                    loss = tf.reduce_mean(loss, axis=0)
+                    loss = tf.reduce_sum(loss)
                 tf.summary.scalar('loss', loss, self.step)
                 gradient = gt.gradient(loss, self.brain.trainable_variables)
                 if self.step % 100 == 0:
                     for l, g in zip(self.brain.trainable_variables, gradient):
                         tf.summary.histogram('gradient ' + l.name, g, self.step)
+                        tf.summary.histogram(l.name, l, self.step)
                 self.opt.apply_gradients(zip(gradient, self.brain.trainable_variables))
                 del gradient, exp_rew_t, exp_rew_t1
 
