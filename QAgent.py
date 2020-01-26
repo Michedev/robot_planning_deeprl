@@ -147,10 +147,10 @@ class QAgent:
                     del s_t, a_t, r_t, s_t1
                     loss = tf.reduce_mean(loss, axis=0)
                     loss = tf.reduce_sum(loss)
-                tf.summary.scalar('q loss', loss, self.step)
-                tf.summary.scalar('curiosity loss', closs, self.step)
-                tf.summary.scalar('total loss', loss, self.step)
-
+                if self.step % 10 == 0:
+                    tf.summary.scalar('q loss', tf.reduce_mean(qloss), self.step)
+                    tf.summary.scalar('curiosity loss', tf.reduce_mean(closs), self.step)
+                    tf.summary.scalar('total loss', loss, self.step)
                 gradient = gt.gradient(loss, self.brain.trainable_variables)
                 if self.step % 100 == 0:
                     for l, g in zip(self.brain.trainable_variables, gradient):
