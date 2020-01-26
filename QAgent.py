@@ -7,7 +7,11 @@ from random import random, randint
 from brain import *
 from abc import ABC, abstractmethod
 from path import Path
+import gc
 from numba import jit, jitclass, njit
+
+from grid import Direction
+
 FOLDER = Path(__file__).parent
 BRAINFILEINDEX = FOLDER / 'brain.tf.index'
 BRAINFILE = FOLDER / 'brain.tf'
@@ -30,6 +34,7 @@ class QAgent:
         self.step = 1
         self.episode = 0
         self.step_episode = 0
+        self.brain.summary()
         self.writer = tf.summary.create_file_writer('robot_logs')
         self.writer.set_as_default()
         self.epsilon = 1.0
@@ -47,7 +52,19 @@ class QAgent:
     def brain_section(self, section):
         return self.brain.get_layer(section).trainable_variables
 
-    def decide(self, grid):
+
+    def support_features(self, grid, my_pos, destination_pos):
+        result = np.zeros(2 + 2 + 4 * 4)
+        result[:2] = [my_pos[0] / grid.w, my_pos[1] / grid.h]
+        result[2:4] = [destination_pos[0] / grid.w, destination_pos[1] / grid.h]
+        i = 0
+        for direction in [Direction.North, Direction.South, Direction.Est, Direction.West]:
+            val_direction = direction.value
+            cell_type = grid[my_pos + val_direction][1:]
+            result[4 + i * 4: 4 + (i+1) * 4] = cell_type
+        return result
+
+    def decide(self, grid, my_pos, destination_pos):
         if self.__i_experience == self.experience_size:
             print('learning from the past errors...')
             self.experience_update(self.experience_buffer, self.discount_factor)
@@ -55,7 +72,8 @@ class QAgent:
         self.experience_buffer[0][self.__i_experience] = grid
         grid = tf.Variable(grid.astype('float32'), trainable=False)
         grid = tf.expand_dims(grid, axis=0)
-        q_values = self.brain(grid)
+        extradata = self.support_features(grid, my_pos, destination_pos)
+        q_values = self.brain([grid, extradata])
         q_values = tf.squeeze(q_values)
         if random() > self.epsilon:
             i = int(tf.argmax(q_values))
@@ -97,33 +115,33 @@ class QAgent:
         self.__i_experience += 1
 
     def experience_update(self, data, discount_factor):
-        for i in range(3):
-            index = np.arange(0, self.experience_size)
-            np.random.shuffle(index)
-            batch_size = 32
-            nbatch = np.ceil(len(index) / batch_size)
-            nbatch = int(nbatch)
-            for i_batch in range(nbatch):
-                is_last = i_batch == nbatch - 1
-                slice_batch = slice(i_batch * batch_size, ((i_batch + 1) * batch_size if not is_last else None))
-                (s_t, a_t, r_t, s_t1) = [data[i][index[slice_batch]] for i in range(len(data))]
-                a_t = tf.cast(a_t, tf.int32)
-                s_t = tf.cast(s_t, tf.float32)
-                s_t1 = tf.cast(s_t1, tf.float32)
+      for _ in range(3):
+          index = np.arange(0, self.experience_size)
+          np.random.shuffle(index)
+          batch_size = 32
+          nbatch = np.ceil(len(index) / batch_size)
+          nbatch = int(nbatch)
+          for i_batch in range(nbatch):
+              is_last = i_batch == nbatch - 1
+              slice_batch = slice(i_batch * batch_size, ((i_batch + 1) * batch_size if not is_last else None))
+              (s_t, a_t, r_t, s_t1) = [data[i][index[slice_batch]] for i in range(len(data))]
+              a_t = tf.cast(a_t, tf.int32)
+              s_t = tf.cast(s_t, tf.float32)
+              s_t1 = tf.cast(s_t1, tf.float32)
 
-                with tf.GradientTape() as gt:
-                    exp_rew_t = self.brain(s_t)
-                    exp_rew_t = exp_rew_t * tf.one_hot(a_t, depth=4)
-                    exp_rew_t = tf.reduce_max(exp_rew_t, axis=1)
-                    exp_rew_t1 = self.q_future(s_t1)
-                    exp_rew_t1 = tf.reduce_max(exp_rew_t1, axis=1)
-                    loss = loss_v1(r_t, exp_rew_t, exp_rew_t1, discount_factor)
-                    del s_t, a_t, r_t, s_t1
-                    loss = tf.reduce_mean(loss)
-                tf.summary.scalar('loss', loss, self.step)
-                gradient = gt.gradient(loss, self.brain.trainable_variables)
-                self.opt.apply_gradients(zip(gradient, self.brain.trainable_variables))
-                del gradient, exp_rew_t, exp_rew_t1
+              with tf.GradientTape() as gt:
+                  exp_rew_t = self.brain(s_t)
+                  exp_rew_t = exp_rew_t * tf.one_hot(a_t, depth=4)
+                  exp_rew_t = tf.reduce_max(exp_rew_t, axis=1)
+                  exp_rew_t1 = self.q_future(s_t1)
+                  exp_rew_t1 = tf.reduce_max(exp_rew_t1, axis=1)
+                  loss = loss_v1(r_t, exp_rew_t, exp_rew_t1, discount_factor)
+                  del s_t, a_t, r_t, s_t1
+                  loss = tf.reduce_mean(loss)
+              tf.summary.scalar('loss', loss, self.step)
+              gradient = gt.gradient(loss, self.brain.trainable_variables)
+              self.opt.apply_gradients(zip(gradient, self.brain.trainable_variables))
+              del gradient, exp_rew_t, exp_rew_t1
 
     def reset(self):
         self.__i_experience = 0

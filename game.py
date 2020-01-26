@@ -73,7 +73,7 @@ class Game:
             self.first_turn = False
             self.explore_cells(self.player_position)
         int_grid = self.grid.as_int()
-        move = self.agent.decide(int_grid)
+        move = self.agent.decide(int_grid, self.player_position, self.grid.destination_position)
         direction = Direction.from_index(move).value
         move_result, reward = self.move(direction)
         self.agent.get_reward(self.grid.as_int(standardize=True), reward, self.player_position)
