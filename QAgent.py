@@ -20,7 +20,21 @@ LASTSTEP = FOLDER / 'laststep.txt'
 
 class QAgent:
 
-    def __init__(self, grid_shape, discount_factor=0.85, experience_size=1024, update_q_fut=1000, sample_experience=128):
+    def __init__(self, grid_shape, discount_factor=0.99, experience_size=1_000_000, update_q_fut=1000,
+                 sample_experience=128, update_freq=4, no_update_start=500):
+        '''
+
+        :param grid_shape:
+        :param discount_factor:
+        :param experience_size:
+        :param update_q_fut:
+        :param sample_experience: sample size drawn from the buffer
+        :param update_freq: number of steps for a model update
+        :param no_update_start: number of initial steps which the model doesn't update
+        '''
+        ### TODO implement in decide update_freq and no_update_start
+        self.no_update_start = no_update_start
+        self.update_freq = update_freq
         self.sample_experience = sample_experience
         self.update_q_fut = update_q_fut
         self.epsilon = 1.0
@@ -31,7 +45,7 @@ class QAgent:
             self.brain.load_weights(BRAINFILE)
         self.q_future = tf.keras.models.clone_model(self.brain)
         self._q_value_hat = 0
-        self.opt = tfa.optimizers.RectifiedAdam(10e-4, 0.9)
+        self.opt = tf.optimizers.RMSprop(0.00025,  0.95, 0.95, 0.01)
         self.step = 1
         self.episode = 0
         self.step_episode = 0
@@ -41,7 +55,8 @@ class QAgent:
         self.epsilon = 1.0
         self.__i_experience = 0
         self._curiosity_values = None
-        self.experience_size = experience_size
+        self.experience_max_size = experience_size
+        self.experience_size = 0
         self.same_values = tf.zeros((4,))
         self.same_counter = 0
         self.destination_position = None
@@ -73,10 +88,10 @@ class QAgent:
 
     def decide(self, grid, my_pos, destination_pos):
         self.destination_position = destination_pos
-        if self.__i_experience == self.experience_size:
-            print('learning from the past errors...')
-            self.experience_update(self.experience_buffer, self.discount_factor)
+        if self.__i_experience == self.experience_max_size:
             self.__i_experience = 0
+        if self.no_update_start > self.__i_experience and self.__i_experience % self.update_freq == 0:
+            self.experience_update(self.experience_buffer, self.discount_factor)
         self.experience_buffer[0][self.__i_experience] = grid
         grid = tf.Variable(grid.astype('float32'), trainable=False)
         extradata = self.extra_features(grid, my_pos, destination_pos)
@@ -121,6 +136,8 @@ class QAgent:
         tf.summary.scalar('true reward', reward, self.step)
         self.step += 1
         self.__i_experience += 1
+        if self.experience_max_size > self.experience_size:
+            self.experience_size += 1
 
     def experience_update(self, data, discount_factor):
         for _ in range(3):
@@ -160,7 +177,6 @@ class QAgent:
                 del gradient, exp_rew_t, exp_rew_t1
 
     def reset(self):
-        self.__i_experience = 0
         self.epsilon = 1.0
         self.step_episode = 0
 

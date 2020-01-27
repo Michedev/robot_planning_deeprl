@@ -26,10 +26,12 @@ def cortex(input_size):
     inputs = Input(input_size)
     outputs = inputs
     ksize = 3
+    nfilters = 256
     for i in range(2):
         if i == 1:
             ksize += 2
-        outputs = Conv2D(32 ** (i + 1), kernel_size=ksize, strides=2)(outputs)
+            nfilters *= 2
+        outputs = Conv2D(nfilters, kernel_size=ksize, strides=2)(outputs)
         outputs = ReLU()(outputs)
     outputs = Flatten()(outputs)
 
@@ -127,8 +129,6 @@ def brain_v2(input_size):
     curiosity_output = curiosity(cortex_output)
 
     brain = Model([inputs, loc_input], [q_value_est, curiosity_output], name='brain_v2')
-
-    brain.summary()
 
     return brain
 
