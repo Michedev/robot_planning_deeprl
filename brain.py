@@ -25,8 +25,11 @@ def squeeze_excite_block(tensor, ratio=16):
 def cortex(input_size):
     inputs = Input(input_size)
     outputs = inputs
+    ksize = 3
     for i in range(2):
-        outputs = Conv2D(32 ** (i + 1), kernel_size=3, strides=2)(outputs)
+        if i == 1:
+            ksize += 2
+        outputs = Conv2D(32 ** (i + 1), kernel_size=ksize, strides=2)(outputs)
         outputs = ReLU()(outputs)
     outputs = Flatten()(outputs)
 
@@ -62,7 +65,7 @@ def curiosity_model(input_shape):
     outputs = ReLU()(outputs)
     outputs = Dense(output_size)(outputs)
     outputs = Reshape((4,4))(outputs)
-    outputs = tf.keras.activations.softmax(outputs, 1)
+    outputs = tf.keras.activations.softmax(outputs, -1)
     return Model(inputs, outputs, name='curiosity_module')
 
 
@@ -114,12 +117,10 @@ def brain_v2(input_size):
     main_cortex = cortex(input_size)
     outputs = inputs
     cortex_output = main_cortex(outputs)
-
-    print(cortex_output.shape)
+    cortex_output = Concatenate()([cortex_output, loc_input])
 
     q_module = q_value_module(cortex_output.shape[1:])
     q_value_est = q_module(cortex_output)
-    q_value_est = Concatenate()([q_value_est, loc_input])
     q_value_est = Dense(4)(q_value_est)
 
     curiosity = curiosity_model(cortex_output.shape[1:])

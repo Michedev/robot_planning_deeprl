@@ -111,6 +111,8 @@ class Grid:
         for i, line in enumerate(lines):
             for j, char in enumerate(line):
                 grid[i, j] = Cell.to_bool_array(int(char))
+                if i == 0 or j == 0 or i == (w - 1) or j == (h - 1):
+                    grid[i, j, 0] = True
                 if grid[i, j, 3]:
                     player_position = Point(i, j)
                 if grid[i, j, 4]:
@@ -132,6 +134,7 @@ class Grid:
     __slots__ = ['destination_position', 'initial_player_position', '_grid', 'w', 'h', 'shape', 'grid']
 
     def explore(self, i, j):
+        self._grid[i, j, 0] = True
         self.grid[i,j,:] = self._grid[i,j,:]
 
     def has_player(self, i, j):

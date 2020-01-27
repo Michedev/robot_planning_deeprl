@@ -20,7 +20,8 @@ LASTSTEP = FOLDER / 'laststep.txt'
 
 class QAgent:
 
-    def __init__(self, grid_shape, discount_factor=0.85, experience_size=128, update_q_fut=1000):
+    def __init__(self, grid_shape, discount_factor=0.85, experience_size=1024, update_q_fut=1000, sample_experience=128):
+        self.sample_experience = sample_experience
         self.update_q_fut = update_q_fut
         self.epsilon = 1.0
         self.discount_factor = discount_factor
@@ -122,9 +123,8 @@ class QAgent:
         self.__i_experience += 1
 
     def experience_update(self, data, discount_factor):
-        for _ in range(2):
-            index = np.arange(0, self.experience_size)
-            np.random.shuffle(index)
+        for _ in range(3):
+            index = np.random.randint(0, self.experience_size-1, self.sample_experience)
             batch_size = 32
             nbatch = np.ceil(len(index) / batch_size)
             nbatch = int(nbatch)

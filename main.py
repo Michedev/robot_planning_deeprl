@@ -17,8 +17,6 @@ for round in range(100):
     else:
         shuffle(maps)
     for file in maps:
-        if 'medium' in file:
-            continue
         print(('=' * 100) + '\n\n')
         print('playing map ', file)
         print('\n\n' + ('=' * 100))
