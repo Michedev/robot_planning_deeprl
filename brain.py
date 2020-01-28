@@ -26,15 +26,19 @@ def cortex(input_size):
     inputs = Input(input_size)
     outputs = inputs
     ksize = 3
-    nfilters = 256
+    nfilters = 512
     for i in range(2):
         if i == 1:
             ksize += 2
             nfilters *= 2
         outputs = Conv2D(nfilters, kernel_size=ksize, strides=2)(outputs)
+        outputs = BatchNormalization(axis=[1,2], trainable=False)(outputs)
         outputs = ReLU()(outputs)
     outputs = Flatten()(outputs)
-
+    dense_output = Dense(256)(inputs)
+    dense_output = BatchNormalization(trainable=False)(dense_output)
+    dense_output = ReLU()(dense_output)
+    outputs = Concatenate()([outputs, dense_output])
     return Model(inputs, outputs, name='main_cortex')
 
 
@@ -123,7 +127,6 @@ def brain_v2(input_size):
 
     q_module = q_value_module(cortex_output.shape[1:])
     q_value_est = q_module(cortex_output)
-    q_value_est = Dense(4)(q_value_est)
 
     curiosity = curiosity_model(cortex_output.shape[1:])
     curiosity_output = curiosity(cortex_output)
