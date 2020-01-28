@@ -35,10 +35,10 @@ def cortex(input_size):
         outputs = BatchNormalization(axis=[1,2], trainable=False)(outputs)
         outputs = ReLU()(outputs)
     outputs = Flatten()(outputs)
-    dense_output = Dense(256)(inputs)
+    dense_output = Dense(512)(inputs)
     dense_output = BatchNormalization(trainable=False)(dense_output)
     dense_output = ReLU()(dense_output)
-    outputs = Concatenate()([outputs, dense_output])
+    outputs = Add()([outputs, dense_output])
     return Model(inputs, outputs, name='main_cortex')
 
 
