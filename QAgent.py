@@ -137,6 +137,7 @@ class QAgent:
             self.q_future = tf.keras.models.clone_model(self.brain)
         tf.summary.scalar('true reward', reward, self.step)
         self.step += 1
+        self.step_episode += 1
         self.__i_experience += 1
         if self.experience_max_size > self.experience_size:
             self.experience_size += 1

@@ -26,7 +26,7 @@ def cortex(input_size):
     inputs = Input(input_size)
     outputs = inputs
     ksize = 3
-    nfilters = 512
+    nfilters = 256
     for i in range(2):
         if i == 1:
             ksize += 2
@@ -35,10 +35,11 @@ def cortex(input_size):
         outputs = BatchNormalization(axis=[1,2], trainable=False)(outputs)
         outputs = ReLU()(outputs)
     outputs = Flatten()(outputs)
-    dense_output = Dense(512)(inputs)
+    dense_output = Flatten()(inputs)
+    dense_output = Dense(512)(dense_output)
     dense_output = BatchNormalization(trainable=False)(dense_output)
     dense_output = ReLU()(dense_output)
-    outputs = Add()([outputs, dense_output])
+    outputs = tf.add(outputs, dense_output)
     return Model(inputs, outputs, name='main_cortex')
 
 
