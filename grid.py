@@ -142,7 +142,7 @@ class Grid:
         return self.grid[i, j, 3]
 
     def explored(self, i, j):
-        return self.grid[i, j, 0]
+        return not self.grid[i, j, 0]
 
     def obstacle(self, i, j):
         return self.grid[i, j, 2]
