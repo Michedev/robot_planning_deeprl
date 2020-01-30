@@ -25,7 +25,8 @@ class Cell:
         if value == 3:
             destination = True
             explored = True
-        return [explored, empty, obstacle, has_player, destination]
+        unknown = not explored
+        return [unknown, empty, obstacle, has_player, destination]
 
 
 @dataclass
@@ -112,7 +113,7 @@ class Grid:
             for j, char in enumerate(line):
                 grid[i, j] = Cell.to_bool_array(int(char))
                 if i == 0 or j == 0 or i == (w - 1) or j == (h - 1):
-                    grid[i, j, 0] = True
+                    grid[i, j, 0] = False
                 if grid[i, j, 3]:
                     player_position = Point(i, j)
                 if grid[i, j, 4]:
@@ -134,7 +135,7 @@ class Grid:
     __slots__ = ['destination_position', 'initial_player_position', '_grid', 'w', 'h', 'shape', 'grid']
 
     def explore(self, i, j):
-        self._grid[i, j, 0] = True
+        self._grid[i, j, 0] = False
         self.grid[i,j,:] = self._grid[i,j,:]
 
     def has_player(self, i, j):
@@ -164,7 +165,7 @@ class Grid:
         public_grid = np.zeros(grid.shape, dtype='bool')
         for i in range(self.w):
             for j in range(self.h):
-                if grid[i, j, 0]: #i.e. if explored
+                if not grid[i, j, 0]: #i.e. if explored
                     public_grid[i,j,:] = grid[i,j,:]
         return public_grid
 

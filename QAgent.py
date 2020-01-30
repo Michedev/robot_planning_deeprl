@@ -20,7 +20,7 @@ LASTSTEP = FOLDER / 'laststep.txt'
 
 class QAgent:
 
-    def __init__(self, grid_shape, discount_factor=0.99, experience_size=1_000_000, update_q_fut=1000,
+    def __init__(self, grid_shape, discount_factor=0.8, experience_size=10_000, update_q_fut=1000,
                  sample_experience=128, update_freq=60, no_update_start=500):
         '''
 
@@ -45,7 +45,7 @@ class QAgent:
             self.brain.load_weights(BRAINFILE)
         self.q_future = tf.keras.models.clone_model(self.brain)
         self._q_value_hat = 0
-        self.opt = tf.optimizers.RMSprop(0.00025,  0.95, 0.95, 0.01)
+        self.opt = tfa.optimizers.RectifiedAdam(0.00025,  0.95, 0.95, 0.01)
         self.step = 1
         self.episode = 0
         self.step_episode = 0
@@ -179,7 +179,7 @@ class QAgent:
               del gradient, exp_rew_t, exp_rew_t1
 
     def reset(self):
-        self.epsilon = max(1.0 - 0.01 * self.episode, 0.1)
+        self.epsilon = max(1.0 - 0.001 * self.episode, 0.1)
         self.step_episode = 0
 
     def on_win(self):
