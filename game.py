@@ -21,47 +21,44 @@ class Game:
             txt = f.read()
         return cls(txt)
 
-    def is_outofbounds(self, position, direction):
-        p_pos = position + direction
-        outofbounds = any(axis < 0 for axis in p_pos) or any(
-            axis >= max_axis for axis, max_axis in zip(p_pos, self.grid.shape))
+    def is_outofbounds(self, p):
+        outofbounds = any(axis < 0 for axis in p) or \
+                      any(axis >= max_axis for axis, max_axis in zip(p, self.grid.shape))
         return outofbounds
 
-    def is_valid_move(self, position, direction):
-        p_pos = position + direction
-        outofbounds = any(axis < 0 for axis in p_pos) or any(axis >= max_axis for axis, max_axis in zip(p_pos, self.grid.shape))
-        if not outofbounds:
+    def is_valid_move(self, p):
+        if not self.is_outofbounds(p):
             into_obstacle = self.grid.obstacle(*p_pos)
             return not into_obstacle
         return False
 
-    def explore_cells(self, position):
+    def explore_cells(self, position: Point):
         cells_explored = 0
         for i in range(-1, 2):
             for j in range(-1, 2):
                 direction = Point(i, j)
-                if self.is_valid_move(position, direction):
-                    new_position = position + direction
-                    if not self.grid.explored(*new_position):
+                new_pos = position + direction
+                if not self.is_outofbounds(new_pos):
+                    if not self.grid.explored(new_pos.x, new_pos.y):
                         cells_explored += 1
-                        self.grid.explore(*new_position)
+                        self.grid.explore(new_pos.x, new_pos.y)
         return cells_explored
 
     def move(self, direction):
         old_position = self.player_position
-        if self.is_valid_move(old_position, direction):
-            new_position = old_position + direction
-            self.player_position = new_position
+        new_pos = old_position + direction
+        if self.is_valid_move(new_pos):
+            self.player_position = new_pos
             self.grid.set_player(old_position.x, old_position.y, value=False)
-            self.grid.set_player(new_position.x, new_position.y, value=True)
-            if self.grid.destination(*new_position):
+            self.grid.set_player(new_pos.x, new_pos.y, value=True)
+            if self.grid.destination(new_pos.x, new_pos.y):
                 return 1, 1
-            cells_explored = self.explore_cells(new_position)
-            extra = self.calc_extra_reward(cells_explored, new_position, old_position)
+            cells_explored = self.explore_cells(new_pos)
+            extra = self.calc_extra_reward(cells_explored, new_pos, old_position)
             return 0, extra
         return -1, -0.1
 
-    def calc_extra_reward(self, cells_explored, new_position, prev_position):
+    def calc_extra_reward(self, cells_explored, new_position: Point, prev_position: Point):
         curr_distance = new_position.manhattan_distance(self.grid.destination_position)
         prev_distance = prev_position.manhattan_distance(self.grid.destination_position)
         extra_reward = 0.01 * int(prev_distance > curr_distance)
@@ -78,7 +75,7 @@ class Game:
         move_result, reward = self.move(direction)
         if self.turn % 100 == 0:
             print('Move result ', move_result, 'Player pos: ', self.player_position)
-        self.agent.get_reward(self.grid.as_int(standardize=True), reward, self.player_position)
+        self.agent.get_reward(self.grid.as_int(), reward, self.player_position)
         self.turn += 1
         return move_result
 
