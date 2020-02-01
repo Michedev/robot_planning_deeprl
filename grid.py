@@ -165,6 +165,7 @@ class Grid:
         public_grid = np.zeros(grid.shape, dtype='bool')
         for i in range(self.w):
             for j in range(self.h):
+                public_grid[i, j, 0] = True
                 if not grid[i, j, 0]: #i.e. if explored
                     public_grid[i,j,:] = grid[i,j,:]
         return public_grid

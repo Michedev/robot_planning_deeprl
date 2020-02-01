@@ -3,7 +3,6 @@ from tensorflow.keras.layers import *
 import tensorflow as tf
 import numpy as np
 from random import random, randint
-
 from grid import Point
 
 
@@ -26,7 +25,7 @@ def cortex(input_size):
     inputs = Input(input_size)
     outputs = inputs
 
-    outputs = Conv2D(128, kernel_size=5, strides=5)(outputs)
+    outputs = Conv2D(128, kernel_size=6, strides=7)(outputs)
     outputs = BatchNormalization(axis=[1,2], trainable=False)(outputs)
     outputs = ReLU()(outputs)
     outputs = Flatten()(outputs)

@@ -1,7 +1,12 @@
+from typing import List
+
 from QAgent import QAgent
 from grid import *
 from numpy import sign
-
+import viz
+import seaborn as sns
+from matplotlib.animation import FuncAnimation
+import matplotlib.pyplot as plt
 
 class Game:
 
@@ -13,7 +18,9 @@ class Game:
         self.min_distance = (self.grid.w * self.grid.h) ** 2
         self.first_run = True
         self.first_turn = True
+        # self.frames = []
         self.turn = 0
+        self.counter_game = 0
 
     @classmethod
     def from_file(cls, grid_fname):
@@ -28,7 +35,7 @@ class Game:
 
     def is_valid_move(self, p):
         if not self.is_outofbounds(p):
-            into_obstacle = self.grid.obstacle(*p_pos)
+            into_obstacle = self.grid.obstacle(p.x, p.y)
             return not into_obstacle
         return False
 
@@ -56,13 +63,13 @@ class Game:
             cells_explored = self.explore_cells(new_pos)
             extra = self.calc_extra_reward(cells_explored, new_pos, old_position)
             return 0, extra
-        return -1, -0.1
+        return -1, -0.5
 
     def calc_extra_reward(self, cells_explored, new_position: Point, prev_position: Point):
         curr_distance = new_position.manhattan_distance(self.grid.destination_position)
         prev_distance = prev_position.manhattan_distance(self.grid.destination_position)
-        extra_reward = 0.01 * int(prev_distance > curr_distance)
-        extra_reward += 0.001 * cells_explored
+        extra_reward = 0.01 * sign(prev_distance - curr_distance)
+        extra_reward += 0.0001 * cells_explored
         return extra_reward
 
     def run_turn(self):
@@ -70,6 +77,7 @@ class Game:
             self.first_turn = False
             self.explore_cells(self.player_position)
         int_grid = self.grid.as_int()
+        # self.frames.append(int_grid.astype('int'))
         move = self.agent.decide(int_grid, self.player_position, self.grid.destination_position)
         direction = Direction.from_index(move).value
         move_result, reward = self.move(direction)
@@ -91,6 +99,8 @@ class Game:
         while move_result != 1:
             move_result = self.run_turn()
             counter_moves += 1
+        # self._make_gif(self.frames)
+        self.counter_game += 1
         self.agent.on_win()
         print('=' * 100)
         print(f'\n\tmoves to reach destination: {counter_moves}')
@@ -99,3 +109,19 @@ class Game:
 
     def load_from_file(self, fname):
         self.grid = Grid.from_file(fname)
+
+    def _make_gif(self, frames: List[np.ndarray]):
+        f = lambda i: viz.numeric_repr_grid(frames[i])
+        print('num frames', len(frames))
+        fig: plt.Figure = plt.figure()
+        im = plt.imshow(f(0))
+
+        def init():
+            im.set_data(f(0))
+
+        def animate(i):
+            im.set_data(f(i))
+
+        anim = FuncAnimation(fig, animate, frames=len(frames), repeat=False, init_func=init)
+        anim.save('animation.gif', writer='imagemagick', fps=60)
+        raise -1
