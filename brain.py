@@ -25,14 +25,13 @@ def cortex(input_size):
     inputs = Input(input_size)
     conv_outputs = inputs
 
-    conv_outputs = Conv2D(128, kernel_size=6, strides=7)(conv_outputs)
-    conv_outputs = BatchNormalization(axis=[1,2], trainable=False)(conv_outputs)
+    conv_outputs = Conv2D(512, kernel_size=6, strides=7)(conv_outputs)
     conv_outputs = ReLU()(conv_outputs)
     conv_outputs = Flatten()(conv_outputs)
 
 
     dense_output = Flatten()(inputs)
-    dense_output = Dense(128)(dense_output)
+    dense_output = Dense(512)(dense_output)
     dense_output = BatchNormalization(trainable=False)(dense_output)
     dense_output = ReLU()(dense_output)
 
@@ -44,7 +43,7 @@ def q_value_module(input_shape):
     nmoves = 4
     inputs = Input(input_shape)
     outputs = inputs
-    outputs = Dense(100)(outputs)
+    outputs = Dense(128)(outputs)
     outputs = BatchNormalization(trainable=False)(outputs)
     outputs = ReLU()(outputs)
     outputs = Dense(nmoves)(outputs)
@@ -58,10 +57,10 @@ def curiosity_model(input_shape):
     inputs = Input(input_shape)
     outputs = inputs
     output_size = 4 * 4  # type cells * number of cells around
-    outputs = Dense(output_size * 2)(outputs)
+    outputs = Dense(128)(outputs)
     outputs = BatchNormalization(trainable=False)(outputs)
     outputs = ReLU()(outputs)
-    outputs = Dense(output_size * 2)(outputs)
+    outputs = Dense(128)(outputs)
     outputs = BatchNormalization(trainable=False)(outputs)
     outputs = ReLU()(outputs)
     outputs = Dense(output_size)(outputs)

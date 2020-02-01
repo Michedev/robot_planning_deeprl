@@ -82,7 +82,7 @@ class Game:
         direction = Direction.from_index(move).value
         move_result, reward = self.move(direction)
         if self.turn % 100 == 0:
-            print('Move result ', move_result, 'Player pos: ', self.player_position)
+            print('Move result', move_result, 'Reward', reward, 'Player pos', self.player_position)
         self.agent.get_reward(self.grid.as_int(), reward, self.player_position)
         self.turn += 1
         return move_result
