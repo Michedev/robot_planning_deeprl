@@ -110,7 +110,7 @@ class QAgent:
         tf.summary.scalar('action took', i, self.step)
         self.experience_buffer[1][self.__i_experience] = extradata
         self.experience_buffer[2][self.__i_experience] = i
-        self.epsilon = max(0.02, self.epsilon - 0.0004)
+        self.epsilon = max(0.05, self.epsilon - 0.0004)
         if self.step_episode % 1000 == 0:
           self.epsilon = 1.0
         if self.same_counter == 100:
