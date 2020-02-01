@@ -1,4 +1,3 @@
-from fire import Fire
 from grid import Grid
 import seaborn as sns
 import numpy as np
@@ -20,4 +19,5 @@ def numeric_repr_grid(grid):
 
 
 if __name__ == '__main__':
+    from fire import Fire
     Fire(viz)

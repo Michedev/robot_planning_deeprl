@@ -23,20 +23,21 @@ def squeeze_excite_block(tensor, ratio=16):
 
 def cortex(input_size):
     inputs = Input(input_size)
-    outputs = inputs
+    conv_outputs = inputs
 
-    outputs = Conv2D(128, kernel_size=6, strides=7)(outputs)
-    outputs = BatchNormalization(axis=[1,2], trainable=False)(outputs)
-    outputs = ReLU()(outputs)
-    outputs = Flatten()(outputs)
+    conv_outputs = Conv2D(128, kernel_size=6, strides=7)(conv_outputs)
+    conv_outputs = BatchNormalization(axis=[1,2], trainable=False)(conv_outputs)
+    conv_outputs = ReLU()(conv_outputs)
+    conv_outputs = Flatten()(conv_outputs)
+
 
     dense_output = Flatten()(inputs)
     dense_output = Dense(128)(dense_output)
     dense_output = BatchNormalization(trainable=False)(dense_output)
     dense_output = ReLU()(dense_output)
 
-    outputs = tf.add(outputs, dense_output)
-    return Model(inputs, outputs, name='main_cortex')
+    output = tf.add(conv_outputs, dense_output)
+    return Model(inputs, output, name='main_cortex')
 
 
 def q_value_module(input_shape):
