@@ -33,13 +33,13 @@ class QAgent:
         self.epsilon = 1.0
         self.discount_factor = discount_factor
         self.grid_shape = list(grid_shape)
-        self.grid_shape[-1] += 1
         self.brain = brain_v1(self.grid_shape)  # up / down / right / left
         if BRAINFILEINDEX.exists():
             self.brain.load_weights(BRAINFILE)
         self.q_future = tf.keras.models.clone_model(self.brain)
         self._q_value_hat = 0
-        self.opt = tf.optimizers.SGD(0.00025)
+        self.lr = tfa.optimizers.CyclicalLearningRate(0.00025, 0.001, 1000, lambda x: 1, 'scale')
+        self.opt = tf.optimizers.SGD(self.lr)
         self.step = 1
         self.episode = 0
         self.step_episode = 0
