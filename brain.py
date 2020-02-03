@@ -21,33 +21,26 @@ def squeeze_excite_block(tensor, ratio=16):
     return x
 
 
-def cortex(input_size):
+def visual_cortex(input_size):
     inputs = Input(input_size)
     conv_outputs = inputs
 
-    conv_outputs = Conv2D(512, kernel_size=3, strides=2)(conv_outputs)
+    conv_outputs = Conv2D(512, kernel_size=3)(conv_outputs)
     conv_outputs = ReLU()(conv_outputs)
-    conv_outputs = Conv2D(512, kernel_size=5, strides=2)(conv_outputs)
+    conv_outputs = Conv2D(512, kernel_size=3)(conv_outputs)
     conv_outputs = ReLU()(conv_outputs)
     conv_outputs = Flatten()(conv_outputs)
-
-
-    dense_output = Flatten()(inputs)
-    dense_output = Dense(512)(dense_output)
-    dense_output = BatchNormalization(trainable=False)(dense_output)
-    dense_output = ReLU()(dense_output)
-
-    output = tf.add(conv_outputs, dense_output)
-    return Model(inputs, output, name='main_cortex')
+    return Model(inputs, conv_outputs, name='visual_cortex')
 
 
 def q_value_module(input_shape):
     nmoves = 4
     inputs = Input(input_shape)
     outputs = inputs
-    outputs = Dense(128)(outputs)
-    outputs = BatchNormalization(trainable=False)(outputs)
-    outputs = ReLU()(outputs)
+    for _ in range(5):
+        outputs = Dense(128)(outputs)
+        outputs = BatchNormalization(trainable=False)(outputs)
+        outputs = ReLU()(outputs)
     outputs = Dense(nmoves)(outputs)
     return Model(inputs, outputs, name='q_values_module')
 
@@ -100,7 +93,7 @@ def brain_v1(input_size):
     inputs = Input(input_size)
     loc_input = Input(2 + 2 + 4 * 4)  # mypos, destination pos, blocks around
 
-    main_cortex = cortex(input_size)
+    main_cortex = visual_cortex(input_size)
     outputs = inputs
     cortex_output = main_cortex(outputs)
 
@@ -116,7 +109,7 @@ def brain_v1(input_size):
 def brain_v2(input_size):
     inputs = Input(input_size)
     loc_input = Input(2 + 2 + 4 * 4)  # mypos, destination pos, blocks around
-    main_cortex = cortex(input_size)
+    main_cortex = visual_cortex(input_size)
     outputs = inputs
     cortex_output = main_cortex(outputs)
     cortex_output = Concatenate()([cortex_output, loc_input])

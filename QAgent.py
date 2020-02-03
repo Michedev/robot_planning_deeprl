@@ -44,7 +44,7 @@ class QAgent:
             self.brain.load_weights(BRAINFILE)
         self.q_future = tf.keras.models.clone_model(self.brain)
         self._q_value_hat = 0
-        self.opt = tf.optimizers.RMSprop(0.00025,  0.95, 0.95, 0.01)
+        self.opt = tfa.optimizers.RectifiedAdam(0.00025,  0.95, 0.95, 0.01)
         self.step = 1
         self.episode = 0
         self.step_episode = 0
