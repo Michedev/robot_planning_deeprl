@@ -59,7 +59,7 @@ class Game:
             self.grid.set_player(old_position.x, old_position.y, value=False)
             self.grid.set_player(new_pos.x, new_pos.y, value=True)
             if self.grid.destination(new_pos.x, new_pos.y):
-                return 1, 10
+                return 1, 1
             cells_explored = self.explore_cells(new_pos)
             extra = self.calc_extra_reward(cells_explored, new_pos, old_position)
             return 0, extra

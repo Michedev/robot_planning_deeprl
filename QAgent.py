@@ -1,15 +1,9 @@
-from tensorflow.keras.models import Model
-from tensorflow.keras.layers import *
-import tensorflow_addons as tfa
-import tensorflow as tf
-import numpy as np
-from random import random, randint
-from brain import *
-from abc import ABC, abstractmethod
-from path import Path
 import gc
-from numba import jit, jitclass, njit
 
+import tensorflow_addons as tfa
+from path import Path
+
+from brain import *
 from grid import Direction
 
 FOLDER = Path(__file__).parent
