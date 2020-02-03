@@ -25,9 +25,11 @@ def visual_cortex(input_size):
     inputs = Input(input_size)
     conv_outputs = inputs
 
-    conv_outputs = Conv2D(512, kernel_size=3)(conv_outputs)
+    conv_outputs = Conv2D(128, kernel_size=3)(conv_outputs)
     conv_outputs = ReLU()(conv_outputs)
-    conv_outputs = Conv2D(512, kernel_size=3)(conv_outputs)
+    conv_outputs = Conv2D(256, kernel_size=3)(conv_outputs)
+    conv_outputs = ReLU()(conv_outputs)
+    conv_outputs = Conv2D(512, kernel_size=5, strides=2)(conv_outputs)
     conv_outputs = ReLU()(conv_outputs)
     conv_outputs = Flatten()(conv_outputs)
     return Model(inputs, conv_outputs, name='visual_cortex')
@@ -37,9 +39,8 @@ def q_value_module(input_shape):
     nmoves = 4
     inputs = Input(input_shape)
     outputs = inputs
-    for _ in range(5):
+    for _ in range(2):
         outputs = Dense(128)(outputs)
-        outputs = BatchNormalization(trainable=False)(outputs)
         outputs = ReLU()(outputs)
     outputs = Dense(nmoves)(outputs)
     return Model(inputs, outputs, name='q_values_module')
