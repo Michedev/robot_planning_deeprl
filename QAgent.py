@@ -39,7 +39,7 @@ class QAgent:
         self.epsilon = 1.0
         self.discount_factor = discount_factor
         self.grid_shape = list(grid_shape)
-        self.brain = brain_v2(self.grid_shape)  # up / down / right / left
+        self.brain = brain_v1(self.grid_shape)  # up / down / right / left
         if BRAINFILEINDEX.exists():
             self.brain.load_weights(BRAINFILE)
         self.q_future = tf.keras.models.clone_model(self.brain)
@@ -95,7 +95,7 @@ class QAgent:
         grid = tf.Variable(grid.astype('float32'), trainable=False)
         extradata = self.extra_features(grid, my_pos, destination_pos)
         grid = tf.expand_dims(grid, axis=0)
-        q_values, _ = self.brain([grid, extradata])
+        q_values = self.brain([grid, extradata])
         q_values = tf.squeeze(q_values)
         if random() > self.epsilon:
             i = int(tf.argmax(q_values))
@@ -155,21 +155,17 @@ class QAgent:
               s_t1 = tf.cast(s_t1, tf.float32)
               n_t1 = tf.reshape(extra_t1[:, -16:], (-1, 4,4))
               with tf.GradientTape() as gt:
-                  exp_rew_t, est_extra = self.brain([s_t, extra_t])
+                  exp_rew_t = self.brain([s_t, extra_t])
                   exp_rew_t = exp_rew_t * tf.one_hot(a_t, depth=4)
                   exp_rew_t = tf.reduce_max(exp_rew_t, axis=1)
-                  exp_rew_t1, _ = self.q_future([s_t1, extra_t1])
+                  exp_rew_t1 = self.q_future([s_t1, extra_t1])
                   exp_rew_t1 = tf.reduce_max(exp_rew_t1, axis=1)
-                  qloss, closs = loss_v2(r_t, exp_rew_t, exp_rew_t1, discount_factor, n_t1, est_extra)
-                  loss = qloss + closs
+                  qloss = tf.losses.mse(r_t + discount_factor * exp_rew_t1, exp_rew_t)
                   del s_t, a_t, r_t, s_t1
-                  loss = tf.reduce_mean(loss, axis=0)
-                  loss = tf.reduce_sum(loss)
+                  qloss = tf.reduce_mean(qloss)
               if self.step % 10 == 0:
                   tf.summary.scalar('q loss', tf.reduce_mean(qloss), self.step)
-                  tf.summary.scalar('curiosity loss', tf.reduce_mean(closs), self.step)
-                  tf.summary.scalar('total loss', loss, self.step)
-              gradient = gt.gradient(loss, self.brain.trainable_variables)
+              gradient = gt.gradient(qloss, self.brain.trainable_variables)
               if self.step % 100 == 0:
                   for l, g in zip(self.brain.trainable_variables, gradient):
                       tf.summary.histogram('gradient ' + l.name, g, self.step)

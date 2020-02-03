@@ -25,7 +25,9 @@ def cortex(input_size):
     inputs = Input(input_size)
     conv_outputs = inputs
 
-    conv_outputs = Conv2D(512, kernel_size=6, strides=7)(conv_outputs)
+    conv_outputs = Conv2D(512, kernel_size=3, strides=2)(conv_outputs)
+    conv_outputs = ReLU()(conv_outputs)
+    conv_outputs = Conv2D(512, kernel_size=5, strides=2)(conv_outputs)
     conv_outputs = ReLU()(conv_outputs)
     conv_outputs = Flatten()(conv_outputs)
 
