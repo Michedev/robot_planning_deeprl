@@ -5,31 +5,18 @@ import numpy as np
 from random import random, randint
 from grid import Point
 
-
-def squeeze_excite_block(tensor, ratio=16):
-    init = tensor
-    channel_axis = -1
-    filters = init.shape[channel_axis]
-    se_shape = (1, 1, filters)
-
-    se = GlobalAveragePooling2D()(init)
-    se = Reshape(se_shape)(se)
-    se = Dense(filters // ratio, activation='relu', kernel_initializer='he_normal', use_bias=False)(se)
-    se = Dense(filters, activation='sigmoid', kernel_initializer='he_normal', use_bias=False)(se)
-
-    x = multiply([init, se])
-    return x
-
-
 def visual_cortex(input_size):
     inputs = Input(input_size)
     conv_outputs = inputs
 
-    conv_outputs = Conv2D(512, kernel_size=3)(conv_outputs)
+    conv_outputs = Conv2D(128, kernel_size=3)(conv_outputs)
     conv_outputs = ReLU()(conv_outputs)
-    conv_outputs = Conv2D(512, kernel_size=3)(conv_outputs)
+    conv_outputs = Conv2D(256, kernel_size=3)(conv_outputs)
+    conv_outputs = ReLU()(conv_outputs)
+    conv_outputs = Conv2D(512, kernel_size=5, strides=4)(conv_outputs)
     conv_outputs = ReLU()(conv_outputs)
     conv_outputs = Flatten()(conv_outputs)
+
     return Model(inputs, conv_outputs, name='visual_cortex')
 
 

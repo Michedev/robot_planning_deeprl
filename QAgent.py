@@ -39,12 +39,13 @@ class QAgent:
         self.epsilon = 1.0
         self.discount_factor = discount_factor
         self.grid_shape = list(grid_shape)
+        self.grid_shape[-1] += 1
         self.brain = brain_v1(self.grid_shape)  # up / down / right / left
         if BRAINFILEINDEX.exists():
             self.brain.load_weights(BRAINFILE)
         self.q_future = tf.keras.models.clone_model(self.brain)
         self._q_value_hat = 0
-        self.opt = tfa.optimizers.RectifiedAdam(0.00025,  0.95, 0.95, 0.01)
+        self.opt = tf.optimizers.SGD(0.00025)
         self.step = 1
         self.episode = 0
         self.step_episode = 0
@@ -79,7 +80,7 @@ class QAgent:
         for direction in [Direction.North, Direction.South, Direction.Est, Direction.West]:
             val_direction = direction.value
             n_pos = my_pos + val_direction
-            cell_type = grid[n_pos.x, n_pos.y, 1:]
+            cell_type = grid[n_pos.x, n_pos.y, 1:5]
             result[4 + i * 4: 4 + (i + 1) * 4] = cell_type
             i += 1
         result = np.expand_dims(result, axis=0)
