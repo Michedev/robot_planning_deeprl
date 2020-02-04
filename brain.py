@@ -1,6 +1,7 @@
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import *
 import tensorflow as tf
+from tensorflow_addons.layers import GroupNormalization
 import numpy as np
 from random import random, randint
 from grid import Point
@@ -10,10 +11,13 @@ def visual_cortex(input_size):
     conv_outputs = inputs
 
     conv_outputs = Conv2D(128, kernel_size=3)(conv_outputs)
+    conv_outputs = GroupNormalization()(conv_outputs)
     conv_outputs = ReLU()(conv_outputs)
     conv_outputs = Conv2D(256, kernel_size=3)(conv_outputs)
+    conv_outputs = GroupNormalization()(conv_outputs)
     conv_outputs = ReLU()(conv_outputs)
     conv_outputs = Conv2D(512, kernel_size=5, strides=4)(conv_outputs)
+    conv_outputs = GroupNormalization()(conv_outputs)
     conv_outputs = ReLU()(conv_outputs)
     conv_outputs = Flatten()(conv_outputs)
 

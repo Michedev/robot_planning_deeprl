@@ -68,8 +68,8 @@ class Game:
     def calc_extra_reward(self, cells_explored, new_position: Point, prev_position: Point):
         curr_distance = new_position.manhattan_distance(self.grid.destination_position)
         prev_distance = prev_position.manhattan_distance(self.grid.destination_position)
-        extra_reward = 0.01 * sign(prev_distance - curr_distance)
-        extra_reward += 0.0001 * cells_explored
+        extra_reward = 0.01 * int(prev_distance > curr_distance)
+        # extra_reward += 0.0001 * cells_explored
         return extra_reward
 
     def run_turn(self):

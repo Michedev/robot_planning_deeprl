@@ -38,8 +38,7 @@ class QAgent:
             self.brain.load_weights(BRAINFILE)
         self.q_future = tf.keras.models.clone_model(self.brain)
         self._q_value_hat = 0
-        self.lr = tfa.optimizers.CyclicalLearningRate(0.00025, 0.001, 1000, lambda x: 1, 'scale')
-        self.opt = tf.optimizers.SGD(self.lr)
+        self.opt = tfa.optimizers.RectifiedAdam(0.00025)
         self.step = 1
         self.episode = 0
         self.step_episode = 0
