@@ -1,128 +1,62 @@
-from tensorflow.keras.models import Model
-from tensorflow.keras.layers import *
-import tensorflow as tf
-from tensorflow_addons.layers import GroupNormalization
+from typing import Iterable, List, Tuple, Union
+
+import torch
 import numpy as np
 from random import random, randint
 from grid import Point
 
-def visual_cortex(input_size):
-    inputs = Input(input_size)
-    conv_outputs = inputs
 
-    conv_outputs = Conv2D(128, kernel_size=3)(conv_outputs)
-    conv_outputs = GroupNormalization()(conv_outputs)
-    conv_outputs = ReLU()(conv_outputs)
-    conv_outputs = Conv2D(256, kernel_size=3)(conv_outputs)
-    conv_outputs = GroupNormalization()(conv_outputs)
-    conv_outputs = ReLU()(conv_outputs)
-    conv_outputs = Conv2D(512, kernel_size=5, strides=4)(conv_outputs)
-    conv_outputs = GroupNormalization()(conv_outputs)
-    conv_outputs = ReLU()(conv_outputs)
-    conv_outputs = Flatten()(conv_outputs)
+class VisualCortex(torch.nn.Module):
 
-    return Model(inputs, conv_outputs, name='visual_cortex')
+    def __init__(self, input_size: Union[List[int], Tuple[int]]):
+        super().__init__()
+        self.input_size = input_size
+        self.c1 = torch.nn.Conv2d(input_size[0], 128, kernel_size=3)
+        self.gn1 = torch.nn.GroupNorm(4, 128)
+        self.c2 = torch.nn.Conv2d(128, 256, kernel_size=3)
+        self.gn2 = torch.nn.GroupNorm(4, 256)
+        self.c3 = torch.nn.Conv2d(256, 512, kernel_size=5, stride=4)
+        self.gn3 = torch.nn.GroupNorm(4, 512)
 
-
-def q_value_module(input_shape):
-    nmoves = 4
-    inputs = Input(input_shape)
-    outputs = inputs
-    for _ in range(5):
-        outputs = Dense(128)(outputs)
-        outputs = BatchNormalization(trainable=False)(outputs)
-        outputs = ReLU()(outputs)
-    outputs = Dense(nmoves)(outputs)
-    return Model(inputs, outputs, name='q_values_module')
+    def forward(self, input):
+        output = input
+        layers = [self.c1, self.gn1, torch.nn.ReLU(), self.c2, self.gn2, torch.nn.ReLU(), self.c3, self.gn3,
+                  torch.nn.ReLU()]
+        for l in layers:
+            output = l(output)
+        output = torch.flatten(output, start_dim=1)
+        return output
 
 
-def curiosity_model(input_shape):
-    """
-    This brain module predict the type of cells after the movement
-    """
-    inputs = Input(input_shape)
-    outputs = inputs
-    output_size = 4 * 4  # type cells * number of cells around
-    outputs = Dense(128)(outputs)
-    outputs = BatchNormalization(trainable=False)(outputs)
-    outputs = ReLU()(outputs)
-    outputs = Dense(128)(outputs)
-    outputs = BatchNormalization(trainable=False)(outputs)
-    outputs = ReLU()(outputs)
-    outputs = Dense(output_size)(outputs)
-    outputs = Reshape((4,4))(outputs)
-    outputs = tf.keras.activations.softmax(outputs, -1)
-    return Model(inputs, outputs, name='curiosity_module')
+class QValueModule(torch.nn.Module):
+
+    def __init__(self, input_shape1: List[int], input_shape2: List[int]):
+        super().__init__()
+        self.l1 = torch.nn.Sequential(torch.nn.Linear(input_shape1[0], 128),
+                                      torch.nn.BatchNorm1d(128),
+                                      torch.nn.ReLU()
+                                      )
+        self.l2 = torch.nn.Sequential(torch.nn.Linear(128, 128),
+                                      torch.nn.BatchNorm1d(128),
+                                      torch.nn.ReLU()
+                                      )
+        self.l3 = torch.nn.Sequential(torch.nn.Linear(128 + input_shape2[-1], 4))
+
+    def forward(self, state, neightbours):
+        output = self.l1(state)
+        output = self.l2(output)
+        output = torch.cat([output, neightbours], dim=-1)
+        return self.l3(output)
 
 
-def _outofbounds(state, position):
-    return any(axis < 0 for axis in position) or \
-           any(axis >= max_axis for axis, max_axis in zip(position, state.shape))
+class BrainV1(torch.nn.Module):
 
+    def __init__(self, state_size: Union[List[int], Tuple[int]], extradata_size: Union[List[int], Tuple[int]]):
+        super().__init__()
+        self.visual = VisualCortex(state_size)
+        self.q_est = QValueModule([512], extradata_size)
 
-def curiosity_loss(ohe_matrix, output_model):
-    loss = tf.reduce_sum(tf.losses.categorical_crossentropy(ohe_matrix, output_model), axis=-1)
-    return loss
-
-
-def get_player_neightbours(player_position, state):
-    player_neightbours = np.zeros((8,), dtype='float32')
-    index = 0
-    for i in range(-1, 2):
-        for j in range(-1, 2):
-            if i != 0 and j != 0:
-                moved = player_position + Point(i, j)
-                if _outofbounds(state, moved):
-                    player_neightbours[index] = 0.0
-                else:
-                    player_neightbours[index] = state[moved].value
-                index += 1
-    return player_neightbours
-
-
-def brain_v1(input_size):
-    inputs = Input(input_size)
-    loc_input = Input(2 + 2 + 4 * 4)  # mypos, destination pos, blocks around
-
-    main_cortex = visual_cortex(input_size)
-    outputs = inputs
-    cortex_output = main_cortex(outputs)
-
-    q_module = q_value_module(cortex_output.shape[1:])
-    q_value_est = q_module(cortex_output)
-    q_value_est = Concatenate()([q_value_est, loc_input])
-    q_value_est = Dense(4)(q_value_est)
-    qnetwork = Model([inputs, loc_input], q_value_est, name='brain_v1')
-
-    return qnetwork
-
-
-def brain_v2(input_size):
-    inputs = Input(input_size)
-    loc_input = Input(2 + 2 + 4 * 4)  # mypos, destination pos, blocks around
-    main_cortex = visual_cortex(input_size)
-    outputs = inputs
-    cortex_output = main_cortex(outputs)
-    cortex_output = Concatenate()([cortex_output, loc_input])
-
-    q_module = q_value_module(cortex_output.shape[1:])
-    q_value_est = q_module(cortex_output)
-
-    curiosity = curiosity_model(cortex_output.shape[1:])
-    curiosity_output = curiosity(cortex_output)
-
-    brain = Model([inputs, loc_input], [q_value_est, curiosity_output], name='brain_v2')
-
-    return brain
-
-
-def loss_v1(reward, est_reward, future_est_reward, discount_factor):
-    return q_learning_loss(discount_factor, est_reward, future_est_reward, reward)
-
-
-def q_learning_loss(discount_factor, est_reward, future_est_reward, reward):
-    return tf.losses.mse(reward + discount_factor * future_est_reward, est_reward)
-
-
-def loss_v2(reward, est_reward, future_est_reward, discount_factor, neightbours, curiosity_output):
-    return q_learning_loss(discount_factor, est_reward, future_est_reward, reward), curiosity_loss(neightbours, curiosity_output)
+    def forward(self, state, extra):
+        output = self.visual(state)
+        output = self.q_est(output, extra)
+        return output

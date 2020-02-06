@@ -2,6 +2,8 @@ from game import Game
 import os
 from path import Path
 from random import shuffle, seed
+import torch
+
 FOLDER = Path(__file__).parent
 MAPS = FOLDER / 'maps'
 
@@ -25,5 +27,5 @@ for round in range(100):
         else:
             g.load_from_file(file)
         g.play_game()
-        g.agent.brain.save('brain', include_optimizer=False, save_format='tf')
-        g.agent.brain.save_weights('brain.tf')
+
+        torch.save(g.agent.brain, 'brain')
