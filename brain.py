@@ -11,17 +11,12 @@ class VisualCortex(torch.nn.Module):
     def __init__(self, input_size: Union[List[int], Tuple[int]]):
         super().__init__()
         self.input_size = input_size
-        self.c1 = torch.nn.Conv2d(input_size[0], 128, kernel_size=3)
-        self.gn1 = torch.nn.GroupNorm(4, 128)
-        self.c2 = torch.nn.Conv2d(128, 256, kernel_size=3)
-        self.gn2 = torch.nn.GroupNorm(4, 256)
-        self.c3 = torch.nn.Conv2d(256, 512, kernel_size=5, stride=4)
-        self.gn3 = torch.nn.GroupNorm(4, 512)
+        self.c1 = torch.nn.Conv2d(input_size[0], 512, kernel_size=3, stride=3, bias=False)
+        self.gn1 = torch.nn.GroupNorm(4, 512)
 
     def forward(self, input):
         output = input
-        layers = [self.c1, self.gn1, torch.nn.ReLU(), self.c2, self.gn2, torch.nn.ReLU(), self.c3, self.gn3,
-                  torch.nn.ReLU()]
+        layers = [self.c1, self.gn1, torch.nn.ReLU()]
         for l in layers:
             output = l(output)
         output = torch.flatten(output, start_dim=1)
@@ -32,15 +27,15 @@ class QValueModule(torch.nn.Module):
 
     def __init__(self, input_shape1: List[int], input_shape2: List[int]):
         super().__init__()
-        self.l1 = torch.nn.Sequential(torch.nn.Linear(input_shape1[0], 128),
+        self.l1 = torch.nn.Sequential(torch.nn.Linear(8192, 1024, bias=False),
+                                      torch.nn.BatchNorm1d(1024),
+                                      torch.nn.ReLU()
+                                      )
+        self.l2 = torch.nn.Sequential(torch.nn.Linear(1024, 128, bias=False),
                                       torch.nn.BatchNorm1d(128),
                                       torch.nn.ReLU()
                                       )
-        self.l2 = torch.nn.Sequential(torch.nn.Linear(128, 128),
-                                      torch.nn.BatchNorm1d(128),
-                                      torch.nn.ReLU()
-                                      )
-        self.l3 = torch.nn.Sequential(torch.nn.Linear(128 + input_shape2[-1], 4))
+        self.l3 = torch.nn.Sequential(torch.nn.Linear(128 + input_shape2[-1], 4, bias=False))
 
     def forward(self, state, neightbours):
         output = self.l1(state)

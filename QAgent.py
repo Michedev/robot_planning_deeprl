@@ -15,8 +15,7 @@ from modelsummary import summary
 has_gpu = torch.cuda.is_available()
 
 FOLDER = Path(__file__).parent
-BRAINFILEINDEX = FOLDER / 'brain.tf.index'
-BRAINFILE = FOLDER / 'brain.tf'
+BRAINFILE = FOLDER / 'brain.pth'
 LASTSTEP = FOLDER / 'laststep.txt'
 
 
@@ -32,13 +31,12 @@ class GPUData:
         self.r_t = torch.empty(batch_size, dtype=torch.float32, device=device)
 
     def load_in_gpu(self, s_t: torch.Tensor, extra_t, a_t: torch.Tensor, s_t1, extra_t1, r_t):
-        with torch.device(self.device):
-            self.s_t.set_(s_t.float().to(self.device))
-            self.extra_t.set_(extra_t.to(self.device))
-            self.a_t.set_((a_t.unsqueeze(-1) == torch.arange(4).unsqueeze(0)).to(self.device))
-            self.s_t1.set_(s_t1.float().to(self.device))
-            self.extra_t1.set_(extra_t1.to(self.device))
-            self.r_t.set_(r_t.to(self.device))
+        self.s_t.set_(s_t.float().to(self.device))
+        self.extra_t.set_(extra_t.to(self.device))
+        self.a_t.set_((a_t.unsqueeze(-1) == torch.arange(4).unsqueeze(0)).to(self.device))
+        self.s_t1.set_(s_t1.float().to(self.device))
+        self.extra_t1.set_(extra_t1.to(self.device))
+        self.r_t.set_(r_t.to(self.device))
 
 
 class QAgent:
@@ -62,20 +60,18 @@ class QAgent:
         self.discount_factor = discount_factor
         self.grid_shape = list(grid_shape)
         self.grid_shape[-1], self.grid_shape[0] = self.grid_shape[0], self.grid_shape[-1]
-
+        self.grid_shape[0] -= 1
         self.extra_shape = 2 + 2 + 4 * 4
         self._device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.brain = BrainV1(self.grid_shape, [self.extra_shape]).to(self._device)  # up / down / right / left
         self.brain.to(self._device)
         # summary(self.brain, self.grid_shape, (self.extra_shape,), batch_size=-1, show_input=False)
-        if BRAINFILEINDEX.exists():
-            self.brain.load_weights(BRAINFILE)
-        self.q_future = BrainV1(self.grid_shape, [self.extra_shape])
+        if BRAINFILE.exists():
+            self.brain.load_state_dict(torch.load(BRAINFILE))
+        self.q_future = BrainV1(self.grid_shape, [self.extra_shape]).to(self._device)
         self._q_value_hat = 0
-        self.opt = torch.optim.SGD(self.brain.parameters(), lr=0.00025, momentum=0.9)
-        self.lr_scheduler = torch.optim.lr_scheduler.StepLR(self.opt,
-                                                            step_size=1,
-                                                            gamma=0.1)
+        self.opt = torch.optim.SGD(self.brain.parameters(), lr=0.00025, momentum=0.8)
+        self.lr_scheduler = torch.optim.lr_scheduler.CyclicLR(self.opt, 10e-5, 10e-3)
         self.torch_data = GPUData(32, self.grid_shape, self.extra_shape, device=self._device)
         self.step = 1
         self.episode = 0
@@ -106,7 +102,7 @@ class QAgent:
         for direction in [Direction.North, Direction.South, Direction.Est, Direction.West]:
             val_direction = direction.value
             n_pos = my_pos + val_direction
-            cell_type = grid[1:5, n_pos.x, n_pos.y]
+            cell_type = grid[:4, n_pos.x, n_pos.y]
             result[4 + i * 4: 4 + (i + 1) * 4] = cell_type.squeeze()
             i += 1
         result = torch.unsqueeze(result, dim=0)
@@ -124,6 +120,8 @@ class QAgent:
         grid = torch.from_numpy(grid.astype('float32'))
         extradata = self.extra_features(grid, my_pos, destination_pos)
         grid = torch.unsqueeze(grid, dim=0)
+        grid = grid.to(self._device)
+        extradata = extradata.to(self._device)
         self.brain.eval()
         q_values = self.brain(grid, extradata)
         q_values = torch.squeeze(q_values)
@@ -192,6 +190,8 @@ class QAgent:
                 for l in self.brain.parameters(recurse=True):
                     self.writer.add_histogram(str(l), l, self.step)
             self.opt.step()
+            self.lr_scheduler.step(self.step)
+
 
     def reset(self):
         self.epsilon = max(1.0 - 0.001 * self.episode, 0.1)
@@ -200,4 +200,3 @@ class QAgent:
     def on_win(self):
         self.writer.add_scalar('steps per episode', self.step_episode, self.episode)
         self.episode += 1
-        self.lr_scheduler.step(self.episode)

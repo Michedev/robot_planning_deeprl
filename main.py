@@ -28,4 +28,4 @@ for round in range(100):
             g.load_from_file(file)
         g.play_game()
 
-        torch.save(g.agent.brain, 'brain')
+        torch.save(g.agent.brain.state_dict(), 'brain.pth')
