@@ -5,7 +5,7 @@ from path import Path
 import numpy as np
 from tensorboardX import SummaryWriter
 
-from brain import BrainV1
+from brain import BrainV1, QValueModule, VisualCortex
 import torch
 from typing import List
 from grid import Direction
