@@ -23,6 +23,7 @@ LASTSTEP = FOLDER / 'laststep.txt'
 class GPUData:
 
     def __init__(self, batch_size: int, grid_shape: List[int], extra_shape: int, device='cuda'):
+        self.device = device
         self.s_t = torch.empty(batch_size, *grid_shape, dtype=torch.float32, device=device)
         self.extra_t = torch.empty(batch_size, extra_shape, dtype=torch.float32, device=device)
         self.a_t = torch.empty(batch_size, 4, dtype=torch.bool, device=device)
@@ -31,12 +32,13 @@ class GPUData:
         self.r_t = torch.empty(batch_size, dtype=torch.float32, device=device)
 
     def load_in_gpu(self, s_t: torch.Tensor, extra_t, a_t: torch.Tensor, s_t1, extra_t1, r_t):
-        self.s_t.set_(s_t.float())
-        self.extra_t.set_(extra_t)
-        self.a_t.set_(a_t.unsqueeze(-1) == torch.arange(4).unsqueeze(0))
-        self.s_t1.set_(s_t1.float())
-        self.extra_t1.set_(extra_t1)
-        self.r_t.set_(r_t)
+        with torch.device(self.device):
+            self.s_t.set_(s_t.float().to(self.device))
+            self.extra_t.set_(extra_t.to(self.device))
+            self.a_t.set_((a_t.unsqueeze(-1) == torch.arange(4).unsqueeze(0)).to(self.device))
+            self.s_t1.set_(s_t1.float().to(self.device))
+            self.extra_t1.set_(extra_t1.to(self.device))
+            self.r_t.set_(r_t.to(self.device))
 
 
 class QAgent:
@@ -63,7 +65,7 @@ class QAgent:
 
         self.extra_shape = 2 + 2 + 4 * 4
         self._device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        self.brain = BrainV1(self.grid_shape, [self.extra_shape])  # up / down / right / left
+        self.brain = BrainV1(self.grid_shape, [self.extra_shape]).to(self._device)  # up / down / right / left
         self.brain.to(self._device)
         # summary(self.brain, self.grid_shape, (self.extra_shape,), batch_size=-1, show_input=False)
         if BRAINFILEINDEX.exists():
