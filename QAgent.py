@@ -183,8 +183,10 @@ class QAgent:
         gc.collect()
         qloss = torch.mean(qloss)
         qloss.backward()
-        self.task_opt.step()
-        self.task_lr_scheduler.step(self.step)
+        opt = self.task_opt if is_task else self.global_opt
+        lr_scheduler = self.task_lr_scheduler if is_task else self.global_lr_scheduler
+        opt.step()
+        lr_scheduler.step(self.step)
         return qloss
 
     def reset(self):
