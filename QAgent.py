@@ -77,6 +77,8 @@ class QAgent:
         self.global_opt = torch.optim.SGD(self.brain.parameters(), lr=0.00025, momentum=0.8)
         self.global_lr_scheduler = torch.optim.lr_scheduler.CyclicLR(self.global_opt, 10e-5, 10e-3)
 
+        self.loss = torch.nn.MSELoss('mean')
+
         self.step = 1
         self.episode = 0
         self.step_episode = 0
@@ -168,23 +170,26 @@ class QAgent:
                 self.writer.add_histogram(str(l), l, self.step)
 
     def _train_step(self, s_t, extra_t, a_t, r_t, s_t1, extra_t1, discount_factor, is_task=True):
-        s_t = s_t.to(self._device)
+        s_t = s_t.float().to(self._device)
         extra_t = extra_t.to(self._device)
-        a_t = a_t.to(self._device)
+        a_t = (a_t.unsqueeze(-1) == torch.arange(4).unsqueeze(0)).to(self._device)
         r_t = r_t.to(self._device)
-        s_t1 = s_t1.to(self._device)
+        s_t1 = s_t1.float().to(self._device)
         extra_t1 = extra_t1.to(self._device)
         exp_rew_t = self.brain(s_t, extra_t)
         exp_rew_t = exp_rew_t[a_t]
         exp_rew_t1 = self.q_future(s_t1, extra_t1)
         exp_rew_t1 = torch.max(exp_rew_t1, dim=1)
-        qloss = torch.pow(r_t + discount_factor * exp_rew_t1 - exp_rew_t, 2)
+        if isinstance(exp_rew_t1, tuple):
+            exp_rew_t1 = exp_rew_t1[0]
+        qloss = self.loss(r_t + discount_factor * exp_rew_t1, exp_rew_t)
         del s_t, extra_t, a_t, r_t, s_t1,  extra_t1, exp_rew_t, exp_rew_t1
         gc.collect()
         qloss = torch.mean(qloss)
         qloss.backward()
         opt = self.task_opt if is_task else self.global_opt
         lr_scheduler = self.task_lr_scheduler if is_task else self.global_lr_scheduler
+        opt.zero_grad()
         opt.step()
         lr_scheduler.step(self.step)
         return qloss

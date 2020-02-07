@@ -14,7 +14,7 @@ class Game:
 
     def __init__(self, grid_string):
         self.grid = Grid.from_string(grid_string)
-        self.grid_name = md5(grid_string)
+        self.grid_name = md5(grid_string.encode())
         self.agent = QAgent(self.grid.shape)
         self.player_position = self.grid.initial_player_position
         self.min_distance = (self.grid.w * self.grid.h) ** 2
@@ -112,7 +112,7 @@ class Game:
     def load_from_file(self, fname):
         with open(fname) as f:
             grid_string = f.read()
-        self.grid_name = md5(grid_string)
+        self.grid_name = md5(grid_string.encode())
         self.grid = Grid.from_string(grid_string)
 
     def _make_gif(self, frames: List[np.ndarray]):

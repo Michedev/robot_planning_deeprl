@@ -93,7 +93,7 @@ class Grid:
         self.grid = self._public_grid(grid)
 
     def as_int(self, standardize=False):
-        return self.grid
+        return self.grid[:, :, 1:]
 
     @classmethod
     def from_string(cls, string):
