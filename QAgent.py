@@ -11,6 +11,7 @@ from typing import List
 from grid import Direction
 from random import random, randint
 from modelsummary import summary
+from experience_buffer import ExperienceBuffer
 
 has_gpu = torch.cuda.is_available()
 
@@ -70,26 +71,22 @@ class QAgent:
             self.brain.load_state_dict(torch.load(BRAINFILE))
         self.q_future = BrainV1(self.grid_shape, [self.extra_shape]).to(self._device)
         self._q_value_hat = 0
-        self.opt = torch.optim.SGD(self.brain.parameters(), lr=0.00025, momentum=0.8)
-        self.lr_scheduler = torch.optim.lr_scheduler.CyclicLR(self.opt, 10e-5, 10e-3)
-        self.torch_data = GPUData(32, self.grid_shape, self.extra_shape, device=self._device)
+        self.task_opt = torch.optim.SGD(self.brain.parameters(), lr=0.00025, momentum=0.8)
+        self.task_lr_scheduler = torch.optim.lr_scheduler.CyclicLR(self.task_opt, 10e-5, 10e-3)
+
+        self.global_opt = torch.optim.SGD(self.brain.parameters(), lr=0.00025, momentum=0.8)
+        self.global_lr_scheduler = torch.optim.lr_scheduler.CyclicLR(self.global_opt, 10e-5, 10e-3)
+
         self.step = 1
         self.episode = 0
         self.step_episode = 0
         self.writer = SummaryWriter('robot_logs')
         self.epsilon = 1.0
-        self.__i_experience = 0
         self._curiosity_values = None
         self.experience_max_size = experience_size
-        self.experience_size = 0
         self.destination_position = None
 
-        self.experience_buffer = [torch.zeros(self.experience_max_size, *self.grid_shape, dtype=torch.bool, device='cpu'),  # s_t
-                                  torch.zeros(self.experience_max_size, self.extra_shape, dtype=torch.float32, device='cpu'),  # extra_data_t
-                                  torch.zeros(self.experience_max_size, dtype=torch.int8, device='cpu'),  # action
-                                  torch.zeros(self.experience_max_size, dtype=torch.float32, device='cpu'),  # reward
-                                  torch.zeros(self.experience_max_size, *self.grid_shape, dtype=torch.bool, device='cpu'),  # s_t1
-                                  torch.zeros(self.experience_max_size, self.extra_shape, dtype=torch.float32, device='cpu')]  # extra_data_t
+        self.experience_buffer = ExperienceBuffer(self.grid_shape, self.extra_shape)
 
     def brain_section(self, section):
         raise NotImplementedError()
@@ -108,15 +105,13 @@ class QAgent:
         result = torch.unsqueeze(result, dim=0)
         return result
 
-    def decide(self, grid, my_pos, destination_pos):
+    def decide(self, grid_name, grid, my_pos, destination_pos):
         self.brain.eval()
         grid = grid.reshape(self.grid_shape)
         self.destination_position = destination_pos
-        if self.__i_experience == self.experience_max_size:
-            self.__i_experience = 0
-        if self.no_update_start < self.__i_experience and self.__i_experience % self.update_freq == 0:
-            self.experience_update(self.experience_buffer, self.discount_factor)
-        self.experience_buffer[0][self.__i_experience] = torch.from_numpy(grid)
+        if self.no_update_start < self.step and self.step % self.update_freq == 0:
+            self.experience_update(self.discount_factor)
+        self.experience_buffer.put_s_t(grid_name, torch.from_numpy(grid))
         grid = torch.from_numpy(grid.astype('float32'))
         extradata = self.extra_features(grid, my_pos, destination_pos)
         grid = torch.unsqueeze(grid, dim=0)
@@ -136,20 +131,20 @@ class QAgent:
         self.writer.add_scalar('q value right', q_values[3], self.step)
         self.writer.add_scalar('expected reward', self._q_value_hat, self.step)
         self.writer.add_scalar('action took', i, self.step)
-        self.experience_buffer[1][self.__i_experience, :] = extradata
-        self.experience_buffer[2][self.__i_experience] = i
+        self.experience_buffer.put_extra_t(grid_name, extradata)
+        self.experience_buffer.put_a_t(grid_name, i)
         self.epsilon = max(0.05, self.epsilon - 0.0004)
         if self.step_episode % 1000 == 0:
             self.epsilon = 1.0
         return i
 
-    def get_reward(self, grid, reward, player_position):
+    def get_reward(self, grid_name: str, grid, reward: float, player_position):
         grid = grid.reshape(self.grid_shape)
         grid = torch.from_numpy(grid)
-        self.experience_buffer[3][self.__i_experience] = reward
-        self.experience_buffer[4][self.__i_experience] = grid
+        self.experience_buffer.put_r_t(grid_name, reward)
+        self.experience_buffer.put_s_t1(grid_name, grid)
         extra = self.extra_features(grid, player_position, self.destination_position)
-        self.experience_buffer[5][self.__i_experience] = extra
+        self.experience_buffer.put_extra_t1(grid_name, extra)
 
         if self.step % 1000 == 0 and self.step > 0:
             self.q_future.load_state_dict(self.brain.state_dict())
@@ -157,41 +152,40 @@ class QAgent:
         self.writer.add_scalar('true reward', reward, self.step)
         self.step += 1
         self.step_episode += 1
-        self.__i_experience += 1
-        if self.experience_max_size > self.experience_size:
-            self.experience_size += 1
+        self.experience_buffer.increase_i(grid_name)
 
-    def experience_update(self, data, discount_factor):
+    def experience_update(self, discount_factor):
         self.brain.train()
-        index = np.random.randint(0, self.experience_size, (self.sample_experience,))
-        batch_size = 32
-        nbatch = np.ceil(len(index) / batch_size)
-        nbatch = int(nbatch)
-        for i_batch in range(nbatch):
-            is_last = i_batch == nbatch - 1
-            self.opt.zero_grad()
-            slice_batch = slice(i_batch * batch_size, ((i_batch + 1) * batch_size if not is_last else None))
-            (s_t, extra_t, a_t, r_t, s_t1, extra_t1) = [data[i][index[slice_batch]] for i in range(len(data))]
-            self.torch_data.load_in_gpu(s_t, extra_t, a_t, s_t1, extra_t1, r_t)
-            del s_t, a_t, r_t, s_t1
-            exp_rew_t = self.brain(self.torch_data.s_t, self.torch_data.extra_t)
-            exp_rew_t = exp_rew_t[self.torch_data.a_t]
-            exp_rew_t1 = self.q_future(self.torch_data.s_t1, self.torch_data.extra_t1)
-            exp_rew_t1 = torch.max(exp_rew_t1, dim=1)
-            if isinstance(exp_rew_t1, tuple):
-                exp_rew_t1 = exp_rew_t1[0]
-            qloss = torch.pow(self.torch_data.r_t + discount_factor * exp_rew_t1 - exp_rew_t, 2)
-            qloss = torch.mean(qloss)
-            self.opt.zero_grad()
-            qloss.backward()
-            if self.step % 10 == 0:
-                self.writer.add_scalar('q loss', qloss, self.step)
-            if self.step % 100 == 0:
-                for l in self.brain.parameters(recurse=True):
-                    self.writer.add_histogram(str(l), l, self.step)
-            self.opt.step()
-            self.lr_scheduler.step(self.step)
+        for task in self.experience_buffer.task_names:
+            s_t, extra_t, a_t, r_t, s_t1, extra_t1 = self.experience_buffer.sample_same_task(task, 128)
+            self._train_step(s_t, extra_t, a_t, r_t, s_t1, extra_t1, discount_factor, is_task=True)
+        s_t, extra_t, a_t, r_t, s_t1, extra_t1 = self.experience_buffer.sample_all_tasks(16)
+        qloss = self._train_step(s_t, extra_t, a_t, r_t, s_t1, extra_t1, discount_factor, is_task=False)
+        if self.step % 10 == 0:
+            self.writer.add_scalar('q loss', qloss, self.step)
+        if self.step % 100 == 0:
+            for l in self.brain.parameters(recurse=True):
+                self.writer.add_histogram(str(l), l, self.step)
 
+    def _train_step(self, s_t, extra_t, a_t, r_t, s_t1, extra_t1, discount_factor, is_task=True):
+        s_t = s_t.to(self._device)
+        extra_t = extra_t.to(self._device)
+        a_t = a_t.to(self._device)
+        r_t = r_t.to(self._device)
+        s_t1 = s_t1.to(self._device)
+        extra_t1 = extra_t1.to(self._device)
+        exp_rew_t = self.brain(s_t, extra_t)
+        exp_rew_t = exp_rew_t[a_t]
+        exp_rew_t1 = self.q_future(s_t1, extra_t1)
+        exp_rew_t1 = torch.max(exp_rew_t1, dim=1)
+        qloss = torch.pow(r_t + discount_factor * exp_rew_t1 - exp_rew_t, 2)
+        del s_t, extra_t, a_t, r_t, s_t1,  extra_t1, exp_rew_t, exp_rew_t1
+        gc.collect()
+        qloss = torch.mean(qloss)
+        qloss.backward()
+        self.task_opt.step()
+        self.task_lr_scheduler.step(self.step)
+        return qloss
 
     def reset(self):
         self.epsilon = max(1.0 - 0.001 * self.episode, 0.1)
