@@ -7,12 +7,14 @@ import viz
 import seaborn as sns
 from matplotlib.animation import FuncAnimation
 import matplotlib.pyplot as plt
+from hashlib import md5
+
 
 class Game:
 
     def __init__(self, grid_string):
-        self.grid_string = grid_string
         self.grid = Grid.from_string(grid_string)
+        self.grid_name = md5(grid_string)
         self.agent = QAgent(self.grid.shape)
         self.player_position = self.grid.initial_player_position
         self.min_distance = (self.grid.w * self.grid.h) ** 2
@@ -78,12 +80,12 @@ class Game:
             self.explore_cells(self.player_position)
         int_grid = self.grid.as_int()
         # self.frames.append(int_grid.astype('int'))
-        move = self.agent.decide(int_grid, self.player_position, self.grid.destination_position)
+        move = self.agent.decide(self.grid_name, int_grid, self.player_position, self.grid.destination_position)
         direction = Direction.from_index(move).value
         move_result, reward = self.move(direction)
         if self.turn % 100 == 0:
             print('Move result', move_result, 'Reward', reward, 'Player pos', self.player_position)
-        self.agent.get_reward(self.grid.as_int(), reward, self.player_position)
+        self.agent.get_reward(self.grid_name, self.grid.as_int(), reward, self.player_position)
         self.turn += 1
         return move_result
 
@@ -108,7 +110,10 @@ class Game:
         return counter_moves
 
     def load_from_file(self, fname):
-        self.grid = Grid.from_file(fname)
+        with open(fname) as f:
+            grid_string = f.read()
+        self.grid_name = md5(grid_string)
+        self.grid = Grid.from_string(grid_string)
 
     def _make_gif(self, frames: List[np.ndarray]):
         f = lambda i: viz.numeric_repr_grid(frames[i])
