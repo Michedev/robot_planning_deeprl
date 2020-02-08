@@ -23,7 +23,7 @@ LASTSTEP = FOLDER / 'laststep.txt'
 class QAgent:
 
     def __init__(self, grid_shape, discount_factor=0.8, experience_size=50_000, update_q_fut=1000,
-                 sample_experience=128, update_freq=100, no_update_start=500):
+                 sample_experience=128, update_freq=40, no_update_start=5_000):
         '''
         :param grid_shape:
         :param discount_factor:

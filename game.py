@@ -8,13 +8,14 @@ import seaborn as sns
 from matplotlib.animation import FuncAnimation
 import matplotlib.pyplot as plt
 from hashlib import md5
+import gc
 
 
 class Game:
 
-    def __init__(self, grid_string):
+    def __init__(self, grid_string, grid_name=None):
         self.grid = Grid.from_string(grid_string)
-        self.grid_name = md5(grid_string.encode())
+        self.grid_name = grid_name or md5(grid_string.encode())
         self.agent = QAgent(self.grid.shape)
         self.player_position = self.grid.initial_player_position
         self.min_distance = (self.grid.w * self.grid.h) ** 2
@@ -28,7 +29,7 @@ class Game:
     def from_file(cls, grid_fname):
         with open(grid_fname) as f:
             txt = f.read()
-        return cls(txt)
+        return cls(txt, grid_fname)
 
     def is_outofbounds(self, p):
         outofbounds = any(axis < 0 for axis in p) or \
@@ -84,7 +85,9 @@ class Game:
         direction = Direction.from_index(move).value
         move_result, reward = self.move(direction)
         if self.turn % 100 == 0:
-            print('Move result', move_result, 'Reward', reward, 'Player pos', self.player_position)
+            print('Move result', move_result,
+                  'Reward', reward,
+                  'Player pos', self.player_position)
         self.agent.get_reward(self.grid_name, self.grid.as_int(), reward, self.player_position)
         self.turn += 1
         return move_result
@@ -102,6 +105,7 @@ class Game:
             move_result = self.run_turn()
             counter_moves += 1
         # self._make_gif(self.frames)
+        gc.collect()
         self.counter_game += 1
         self.agent.on_win()
         print('=' * 100)
@@ -112,7 +116,7 @@ class Game:
     def load_from_file(self, fname):
         with open(fname) as f:
             grid_string = f.read()
-        self.grid_name = md5(grid_string.encode())
+        self.grid_name = fname
         self.grid = Grid.from_string(grid_string)
 
     def _make_gif(self, frames: List[np.ndarray]):
