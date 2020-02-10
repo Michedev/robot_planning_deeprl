@@ -12,12 +12,13 @@ from grid import Direction
 from random import random, randint
 from modelsummary import summary
 from experience_buffer import ExperienceBuffer
+import json
 
 has_gpu = torch.cuda.is_available()
 
 FOLDER = Path(__file__).parent
 BRAINFILE = FOLDER / 'brain.pth'
-LASTSTEP = FOLDER / 'laststep.txt'
+AGENTDATA = FOLDER / 'agent.json'
 
 
 class QAgent:
@@ -67,6 +68,12 @@ class QAgent:
         self._curiosity_values = None
         self.experience_max_size = experience_size
         self.destination_position = None
+
+        if AGENTDATA.exists():
+            with open(AGENTDATA) as f:
+                data = json.load(f)
+            self.step = data['step']
+            self.episode = data['episode']
 
         self.experience_buffer = ExperienceBuffer(self.grid_shape, self.extra_shape)
 
@@ -181,4 +188,8 @@ class QAgent:
         self.episode += 1
         self.task_lr_scheduler.step(self.episode)
         self.global_lr_scheduler.step(self.episode)
+        with open(AGENTDATA, mode='w') as f:
+            json.dump(dict(step=self.step, episode=self.episode), f)
+
+        self.update_freq = min(self.update_freq + self.episode, 200)
 
