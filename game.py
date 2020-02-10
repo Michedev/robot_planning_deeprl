@@ -71,7 +71,9 @@ class Game:
     def calc_extra_reward(self, cells_explored, new_position: Point, prev_position: Point):
         curr_distance = new_position.manhattan_distance(self.grid.destination_position)
         prev_distance = prev_position.manhattan_distance(self.grid.destination_position)
-        extra_reward = 0.01 * int(prev_distance > curr_distance)
+        extra_reward = curr_distance / (self.grid.h + self.grid.w)
+        extra_reward = 1 - extra_reward
+        extra_reward *= sign(prev_distance - curr_distance) * 0.1
         # extra_reward += 0.0001 * cells_explored
         return extra_reward
 
@@ -95,7 +97,7 @@ class Game:
     def play_game(self):
         self.agent.reset()
         self.player_position = self.grid.initial_player_position
-        print('\n\n\tDestination is in ' + str(self.grid.destination_position) + '\n\n' + ('-' * 100))
+        print('\n\n\tDestination is in ' + str(self.grid.destination_position) + f' - episode {self.agent.episode}' + '\n\n' + ('-' * 100))
         if self.first_run:
             self.first_run = False
         move_result = -1

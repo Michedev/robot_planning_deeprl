@@ -23,7 +23,7 @@ LASTSTEP = FOLDER / 'laststep.txt'
 class QAgent:
 
     def __init__(self, grid_shape, discount_factor=0.8, experience_size=50_000, update_q_fut=1000,
-                 sample_experience=128, update_freq=40, no_update_start=5_000):
+                 sample_experience=128, update_freq=4, no_update_start=5_000):
         '''
         :param grid_shape:
         :param discount_factor:
@@ -51,11 +51,11 @@ class QAgent:
             self.brain.load_state_dict(torch.load(BRAINFILE))
         self.q_future = BrainV1(self.grid_shape, [self.extra_shape]).to(self._device)
         self._q_value_hat = 0
-        self.task_opt = torch.optim.SGD(self.brain.parameters(), lr=0.00025, momentum=0.8)
-        self.task_lr_scheduler = torch.optim.lr_scheduler.CyclicLR(self.task_opt, 10e-5, 10e-3)
+        self.task_opt = torch.optim.Adam(self.brain.parameters(), lr=0.0006, betas=(0.5, 0.8))
+        self.task_lr_scheduler = torch.optim.lr_scheduler.StepLR(self.task_opt, step_size=30, gamma=0.1)
 
-        self.global_opt = torch.optim.SGD(self.brain.parameters(), lr=0.00025, momentum=0.8)
-        self.global_lr_scheduler = torch.optim.lr_scheduler.CyclicLR(self.global_opt, 10e-5, 10e-3)
+        self.global_opt = torch.optim.Adam(self.brain.parameters(), lr=0.0006, betas=(0.5, 0.8))
+        self.global_lr_scheduler = torch.optim.lr_scheduler.StepLR(self.global_opt, step_size=30, gamma=0.1)
 
         self.loss = torch.nn.MSELoss('mean')
 
@@ -146,8 +146,8 @@ class QAgent:
         if self.step % 10 == 0:
             self.writer.add_scalar('q loss', qloss, self.step)
         if self.step % 100 == 0:
-            for l in self.brain.parameters(recurse=True):
-                self.writer.add_histogram(str(l), l, self.step)
+            for i, l in enumerate(self.brain.parameters(recurse=True)):
+                self.writer.add_histogram(f'{type(l)} {i}', l, self.step)
 
     def _train_step(self, s_t, extra_t, a_t, r_t, s_t1, extra_t1, discount_factor, is_task=True):
         s_t = s_t.float().to(self._device)
@@ -168,16 +168,17 @@ class QAgent:
         qloss = torch.mean(qloss)
         qloss.backward()
         opt = self.task_opt if is_task else self.global_opt
-        lr_scheduler = self.task_lr_scheduler if is_task else self.global_lr_scheduler
         opt.zero_grad()
         opt.step()
-        lr_scheduler.step(self.step)
         return qloss
 
     def reset(self):
-        self.epsilon = max(1.0 - 0.001 * self.episode, 0.1)
+        self.epsilon = max(1.0 - 0.01 * self.episode, 0.1)
         self.step_episode = 0
 
     def on_win(self):
         self.writer.add_scalar('steps per episode', self.step_episode, self.episode)
         self.episode += 1
+        self.task_lr_scheduler.step(self.episode)
+        self.global_lr_scheduler.step(self.episode)
+
