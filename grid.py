@@ -90,7 +90,18 @@ class Grid:
         self._grid = grid
         self.shape = list(self._grid.shape)
         self.w, self.h = self.shape[:2]
-        self.grid = self._public_grid(grid)
+        self.grid = self._public_grid(grid).astype('float32')
+        i = np.arange(self.w * self.h).astype('float32')
+        i0 = np.trunc(i / self.w)
+        i0 /= float(self.h)
+        i1 = i % self.w
+        i1 /=  float(self.h)
+        i0 = i0.reshape((self.w, self.h, 1))
+        i1 = i1.reshape((self.w, self.h, 1))
+        self.grid = np.concatenate([self.grid, i0, i1], axis=-1)
+
+
+
 
     def as_int(self, standardize=False):
         return self.grid[:, :, 1:]
@@ -136,7 +147,7 @@ class Grid:
 
     def explore(self, i, j):
         self._grid[i, j, 0] = False
-        self.grid[i,j,:] = self._grid[i,j,:]
+        self.grid[i,j,:5] = self._grid[i,j,:5]
 
     def has_player(self, i, j):
         return self.grid[i, j, 3]

@@ -25,11 +25,11 @@ class ExperienceBuffer:
     def _new_buffer(self, num_rows=None):
         num_rows = num_rows or self.experience_max_size
         return [
-            torch.zeros(num_rows, *self.grid_shape, dtype=torch.bool, device='cpu'),  # s_t
+            torch.zeros(num_rows, *self.grid_shape, dtype=torch.float32, device='cpu'),  # s_t
             torch.zeros(num_rows, self.extra_shape, dtype=torch.float32, device='cpu'),  # extra_data_t
             torch.zeros(num_rows, dtype=torch.int8, device='cpu'),  # action
             torch.zeros(num_rows, dtype=torch.float32, device='cpu'),  # reward
-            torch.zeros(num_rows, *self.grid_shape, dtype=torch.bool, device='cpu'),  # s_t1
+            torch.zeros(num_rows, *self.grid_shape, dtype=torch.float32, device='cpu'),  # s_t1
             torch.zeros(num_rows, self.extra_shape, dtype=torch.float32, device='cpu')]  # extra_data_t1
 
     def put_s_t(self, name: str, value):

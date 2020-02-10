@@ -39,10 +39,12 @@ class QAgent:
         self.sample_experience = sample_experience
         self.update_q_fut = update_q_fut
         self.epsilon = 1.0
+        torch.cuda.empty_cache()
         self.discount_factor = discount_factor
         self.grid_shape = list(grid_shape)
         self.grid_shape[-1], self.grid_shape[0] = self.grid_shape[0], self.grid_shape[-1]
         self.grid_shape[0] -= 1
+        self.grid_shape[0] += 2
         self.extra_shape = 2 + 2 + 4 * 4
         self._device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.brain = BrainV1(self.grid_shape, [self.extra_shape]).to(self._device)  # up / down / right / left
@@ -52,13 +54,13 @@ class QAgent:
             self.brain.load_state_dict(torch.load(BRAINFILE))
         self.q_future = BrainV1(self.grid_shape, [self.extra_shape]).to(self._device)
         self._q_value_hat = 0
-        self.task_opt = torch.optim.Adam(self.brain.parameters(), lr=0.0006, betas=(0.5, 0.8))
+        self.task_opt = torch.optim.RMSprop(self.brain.parameters(), lr=0.0006, momentum=0.9)
         self.task_lr_scheduler = torch.optim.lr_scheduler.StepLR(self.task_opt, step_size=30, gamma=0.1)
 
-        self.global_opt = torch.optim.Adam(self.brain.parameters(), lr=0.0006, betas=(0.5, 0.8))
+        self.global_opt = torch.optim.RMSprop(self.brain.parameters(), lr=0.0006, momentum=0.9)
         self.global_lr_scheduler = torch.optim.lr_scheduler.StepLR(self.global_opt, step_size=30, gamma=0.1)
 
-        self.loss = torch.nn.MSELoss('mean')
+        self.loss = torch.nn.MSELoss(reduction='mean')
 
         self.step = 1
         self.episode = 0
@@ -68,6 +70,8 @@ class QAgent:
         self._curiosity_values = None
         self.experience_max_size = experience_size
         self.destination_position = None
+        print(torch.cuda.memory_summary())
+
 
         if AGENTDATA.exists():
             with open(AGENTDATA) as f:
@@ -171,11 +175,11 @@ class QAgent:
             exp_rew_t1 = exp_rew_t1[0]
         qloss = self.loss(r_t + discount_factor * exp_rew_t1, exp_rew_t)
         del s_t, extra_t, a_t, r_t, s_t1,  extra_t1, exp_rew_t, exp_rew_t1
-        gc.collect()
         qloss = torch.mean(qloss)
         qloss.backward()
         opt = self.task_opt if is_task else self.global_opt
         opt.zero_grad()
+        gc.collect()
         opt.step()
         return qloss
 
