@@ -62,7 +62,7 @@ class AuxModule(Module):
     def __init__(self):
         super().__init__()
         self.l1 = Sequential(Linear(512, 256), BatchNorm1d(256), ReLU())
-        self.l2 = Sequential(Linear(256, 6), ReLU())
+        self.l2 = Sequential(Linear(256, 6))
 
     def forward(self, input):
         return self.l2(self.l1(input))
