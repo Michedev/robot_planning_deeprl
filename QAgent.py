@@ -179,9 +179,10 @@ class QAgent:
         if isinstance(exp_rew_t1, tuple):
             exp_rew_t1 = exp_rew_t1[0]
         qloss = self.mse(r_t + discount_factor * exp_rew_t1, exp_rew_t)
-        aux_loss = self.mse(aux_data[:, 0], sum(extra_t[4 + i * 4] for i in range(4))) +\
-                   self.mse(aux_data[:, 1], sum(extra_t[5 + i * 4] for i in range(4))) +\
-                   self.mse(aux_data[:, -2:], extra_t[:, -2:])
+        aux_loss = self.mse(aux_data[:, 0], sum(extra_t[:, 4 + i * 4] for i in range(4))) +\
+                   self.mse(aux_data[:, 1], sum(extra_t[:, 5 + i * 4] for i in range(4))) +\
+                   self.mse(aux_data[:, -4:-2], extra_t[:, :2]) +\
+                   self.mse(aux_data[:, -2:], extra_t[:, 2:4])
         qloss += aux_loss
         del s_t, extra_t, a_t, r_t, s_t1,  extra_t1, exp_rew_t, exp_rew_t1
         qloss = torch.mean(qloss)

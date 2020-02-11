@@ -55,13 +55,14 @@ class AuxModule(Module):
     """
     This module estimate given the output of the visual cortex
     the number of empty, block cells around the robot
-    and the position of the robot
+    the position of the robot and distance from the
+    destination
     """
 
     def __init__(self):
         super().__init__()
         self.l1 = Sequential(Linear(512, 256), BatchNorm1d(256), ReLU())
-        self.l2 = Sequential(Linear(256, 4))
+        self.l2 = Sequential(Linear(256, 6), ReLU())
 
     def forward(self, input):
         return self.l2(self.l1(input))
