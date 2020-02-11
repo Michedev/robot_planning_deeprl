@@ -24,7 +24,7 @@ AGENTDATA = FOLDER / 'agent.json'
 class QAgent:
 
     def __init__(self, grid_shape, discount_factor=0.8, experience_size=50_000, update_q_fut=1000,
-                 sample_experience=128, update_freq=4, no_update_start=5_000):
+                 sample_experience=128, update_freq=4, no_update_start=5_000, meta_learning=True):
         '''
         :param grid_shape:
         :param discount_factor:
@@ -60,7 +60,7 @@ class QAgent:
         self.global_opt = torch.optim.RMSprop(self.brain.parameters(), lr=0.0006, momentum=0.9)
         self.global_lr_scheduler = torch.optim.lr_scheduler.StepLR(self.global_opt, step_size=30, gamma=0.1)
 
-        self.loss = torch.nn.MSELoss(reduction='mean')
+        self.mse = torch.nn.MSELoss(reduction='mean')
 
         self.step = 1
         self.episode = 0
@@ -71,6 +71,7 @@ class QAgent:
         self.experience_max_size = experience_size
         self.destination_position = None
         print(torch.cuda.memory_summary())
+        self.meta_learning = meta_learning
 
 
         if AGENTDATA.exists():
@@ -99,6 +100,8 @@ class QAgent:
         return result
 
     def decide(self, grid_name, grid, my_pos, destination_pos):
+        if not self.meta_learning:
+            grid_name = 'a'
         self.brain.eval()
         grid = grid.reshape(self.grid_shape)
         self.destination_position = destination_pos
@@ -111,7 +114,7 @@ class QAgent:
         grid = grid.to(self._device)
         extradata = extradata.to(self._device)
         self.brain.eval()
-        q_values = self.brain(grid, extradata)
+        q_values, _ = self.brain(grid, extradata)
         q_values = torch.squeeze(q_values)
         if random() > self.epsilon:
             i = int(torch.argmax(q_values))
@@ -132,6 +135,8 @@ class QAgent:
         return i
 
     def get_reward(self, grid_name: str, grid, reward: float, player_position):
+        if not self.meta_learning:
+            grid_name = 'a'
         grid = grid.reshape(self.grid_shape)
         grid = torch.from_numpy(grid)
         self.experience_buffer.put_r_t(grid_name, reward)
@@ -167,13 +172,17 @@ class QAgent:
         r_t = r_t.to(self._device)
         s_t1 = s_t1.float().to(self._device)
         extra_t1 = extra_t1.to(self._device)
-        exp_rew_t = self.brain(s_t, extra_t)
+        exp_rew_t, aux_data = self.brain(s_t, extra_t)
         exp_rew_t = exp_rew_t[a_t]
-        exp_rew_t1 = self.q_future(s_t1, extra_t1)
+        exp_rew_t1, _ = self.q_future(s_t1, extra_t1)
         exp_rew_t1 = torch.max(exp_rew_t1, dim=1)
         if isinstance(exp_rew_t1, tuple):
             exp_rew_t1 = exp_rew_t1[0]
-        qloss = self.loss(r_t + discount_factor * exp_rew_t1, exp_rew_t)
+        qloss = self.mse(r_t + discount_factor * exp_rew_t1, exp_rew_t)
+        aux_loss = self.mse(aux_data[:, 0], sum(extra_t[4 + i * 4] for i in range(4))) +\
+                   self.mse(aux_data[:, 1], sum(extra_t[5 + i * 4] for i in range(4))) +\
+                   self.mse(aux_data[:, -2:], extra_t[:, -2:])
+        qloss += aux_loss
         del s_t, extra_t, a_t, r_t, s_t1,  extra_t1, exp_rew_t, exp_rew_t1
         qloss = torch.mean(qloss)
         qloss.backward()
