@@ -156,9 +156,10 @@ class QAgent:
         self.brain.train()
         for task in self.experience_buffer.task_names:
             s_t, extra_t, a_t, r_t, s_t1, extra_t1 = self.experience_buffer.sample_same_task(task, 128)
-            self._train_step(s_t, extra_t, a_t, r_t, s_t1, extra_t1, discount_factor, is_task=True)
-        s_t, extra_t, a_t, r_t, s_t1, extra_t1 = self.experience_buffer.sample_all_tasks(16)
-        qloss = self._train_step(s_t, extra_t, a_t, r_t, s_t1, extra_t1, discount_factor, is_task=False)
+            qloss = self._train_step(s_t, extra_t, a_t, r_t, s_t1, extra_t1, discount_factor, is_task=True)
+        if self.meta_learning:
+          s_t, extra_t, a_t, r_t, s_t1, extra_t1 = self.experience_buffer.sample_all_tasks(16)
+          qloss = self._train_step(s_t, extra_t, a_t, r_t, s_t1, extra_t1, discount_factor, is_task=False)
         if self.step % 10 == 0:
             self.writer.add_scalar('q loss', qloss, self.step)
         if self.step % 100 == 0:

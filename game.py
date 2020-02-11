@@ -65,7 +65,8 @@ class Game:
                 return 1, 1
             cells_explored = self.explore_cells(new_pos)
             extra = self.calc_extra_reward(cells_explored, new_pos, old_position)
-            return 0, extra
+            reward = - 0.1 + extra
+            return 0, reward
         return -1, -0.5
 
     def calc_extra_reward(self, cells_explored, new_position: Point, prev_position: Point):
