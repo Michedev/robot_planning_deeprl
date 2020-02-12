@@ -1,9 +1,12 @@
-from typing import Iterable, List, Tuple, Union
+from typing import Iterable, List, Tuple, Union, Any
 
 import torch
 import numpy as np
 from random import random, randint
 from grid import Point
+from functools import reduce
+from abc import ABC, abstractmethod, abstractproperty
+from operator import mul
 from torch.nn import *
 
 
@@ -11,23 +14,13 @@ class VisualCortex(Module):
 
     def __init__(self, input_size: Union[List[int], Tuple[int]]):
         super().__init__()
-        self.input_size = input_size
-        self.c1 = Conv2d(input_size[0], 256, kernel_size=3, stride=3, bias=False)
-        self.g1 = GroupNorm(4, 256)
-        self.low_details = Sequential(self.c1, self.g1, ReLU())
-
-        self.high_features = Sequential(
-            Conv2d(256, 512, kernel_size=3, stride=3, bias=False),
-            GroupNorm(4, 512),
-            ReLU())
-
+        self.flatten_input_size = reduce(input_size, mul)
+        self.l1 = Sequential(Linear(self.flatten_input_size, 400), BatchNorm1d(400, track_running_stats=False), ReLU())
         # self.high_details = Sequential(Conv2d(256, 256, kernel_size=3, bias=False), ReLU())
 
     def forward(self, input: torch.Tensor):
-        output1 = self.low_details(input)
-        output2 = self.high_features(output1)
-        output = torch.flatten(output2, start_dim=1)
-
+        output = torch.flatten(input, start_dim=1)
+        output = self.l1(output)
         return output
 
 
@@ -35,23 +28,28 @@ class QValueModule(Module):
 
     def __init__(self, input_shape1: List[int], input_shape2: List[int]):
         super().__init__()
-        self.l1 = Sequential(Linear(512, 256, bias=False),
+        self.l1 = Sequential(Linear(400, 256, bias=False),
                              BatchNorm1d(256),
                              ReLU()
                              )
-        self.l2 = Sequential(Linear(256, 16, bias=False),
-                             BatchNorm1d(16),
-                             ReLU()
-                             )
-        self.l3 = Sequential(Linear(16, 4, bias=False))
+        self.l2 = Sequential(Linear(256, 4, bias=False))
 
     def forward(self, state, neightbours):
         output = self.l1(state)
-        output = self.l2(output)
-        return self.l3(output)
+        return self.l2(output)
+
+class AuxModule(Module, ABC):
+
+    @abstractmethod
+    def input_size(self):
+        return 400
+
+    @abstractmethod
+    def forward(self, *input: Any, **kwargs: Any):
+        raise NotImplementedError
 
 
-class Aux1Module(Module):
+class Aux1Module(AuxModule):
     """
     This module estimate given the output of the visual cortex
     the robot position and the distance from the destination
@@ -59,13 +57,13 @@ class Aux1Module(Module):
 
     def __init__(self):
         super().__init__()
-        self.l1 = Sequential(Linear(512, 256), BatchNorm1d(256), ReLU())
+        self.l1 = Sequential(Linear(self.input_size(), 256), BatchNorm1d(256), ReLU())
         self.l2 = Sequential(Linear(256, 4))
 
     def forward(self, input):
         return self.l2(self.l1(input))
 
-class Aux2Module(Module):
+class Aux2Module(AuxModule):
     """
     This module estimate given the output of the visual cortex
     the number of obstacles around the player
@@ -73,12 +71,12 @@ class Aux2Module(Module):
 
     def __init__(self):
         super().__init__()
-        self.l1 = Sequential(Linear(512, 4), Sigmoid())
+        self.l1 = Sequential(Linear(self.input_size(), 4), Sigmoid())
 
     def forward(self, input):
         return self.l1(input)
 
-class Aux3Module(Module):
+class Aux3Module(AuxModule):
     """
     This module estimate given the output of the visual cortex
     the number of empty blocks around the player
@@ -86,7 +84,7 @@ class Aux3Module(Module):
 
     def __init__(self):
         super().__init__()
-        self.l1 = Sequential(Linear(512, 4), Sigmoid())
+        self.l1 = Sequential(Linear(self.input_size(), 4), Sigmoid())
 
     def forward(self, input):
         return self.l1(input)
@@ -98,7 +96,7 @@ class BrainV1(Module):
     def __init__(self, state_size: Union[List[int], Tuple[int]], extradata_size: Union[List[int], Tuple[int]]):
         super().__init__()
         self.visual = VisualCortex(state_size)
-        self.q_est = QValueModule([512], extradata_size)
+        self.q_est = QValueModule(state_size, extradata_size)
         self.aux1 = Aux1Module()
         self.aux2 = Aux2Module()
         self.aux3 = Aux3Module()

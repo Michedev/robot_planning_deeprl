@@ -114,7 +114,7 @@ class QAgent:
         grid = grid.to(self._device)
         extradata = extradata.to(self._device)
         self.brain.eval()
-        q_values, _ = self.brain(grid, extradata)
+        q_values, *_ = self.brain(grid, extradata)
         q_values = torch.squeeze(q_values)
         if random() > self.epsilon:
             i = int(torch.argmax(q_values))
@@ -175,7 +175,7 @@ class QAgent:
         extra_t1 = extra_t1.to(self._device)
         exp_rew_t, pl_pos__dst, p_obs, p_empty = self.brain(s_t, extra_t)
         exp_rew_t = exp_rew_t[a_t]
-        exp_rew_t1, _ = self.q_future(s_t1, extra_t1)
+        exp_rew_t1, *_ = self.q_future(s_t1, extra_t1)
         exp_rew_t1 = torch.max(exp_rew_t1, dim=1)
         if isinstance(exp_rew_t1, tuple):
             exp_rew_t1 = exp_rew_t1[0]
