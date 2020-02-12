@@ -23,8 +23,8 @@ AGENTDATA = FOLDER / 'agent.json'
 
 class QAgent:
 
-    def __init__(self, grid_shape, discount_factor=0.8, experience_size=50_000, update_q_fut=1000,
-                 sample_experience=128, update_freq=4, no_update_start=5_000, meta_learning=True):
+    def __init__(self, grid_shape, discount_factor=0.8, experience_size=500_000, update_q_fut=1000,
+                 sample_experience=128, update_freq=4, no_update_start=5_000, meta_learning=False):
         '''
         :param grid_shape:
         :param discount_factor:
