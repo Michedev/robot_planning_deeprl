@@ -7,7 +7,7 @@ import torch
 FOLDER = Path(__file__).parent
 MAPS = FOLDER / 'maps'
 
-os.system('rm -rf robot_logs/')
+# os.system('rm -rf robot_logs/')
 g = None
 maps = MAPS.files('*.txt')
 seed(13)
