@@ -15,7 +15,7 @@ class VisualCortex(Module):
     def __init__(self, input_size: Union[List[int], Tuple[int]]):
         super().__init__()
         self.flatten_input_size = reduce(mul, input_size)
-        self.l1 = Sequential(Linear(self.flatten_input_size, 400), BatchNorm1d(400, track_running_stats=False), ReLU())
+        self.l1 = Sequential(Linear(self.flatten_input_size, 400), BatchNorm1d(400), ReLU())
         # self.high_details = Sequential(Conv2d(256, 256, kernel_size=3, bias=False), ReLU())
 
     def forward(self, input: torch.Tensor):
