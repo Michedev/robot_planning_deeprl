@@ -28,11 +28,11 @@ class QValueModule(Module):
 
     def __init__(self, input_shape1: List[int], input_shape2: List[int]):
         super().__init__()
-        self.l1 = Sequential(Linear(400, 256, bias=False),
+        self.l1 = Sequential(Linear(400, 256),
                              BatchNorm1d(256),
                              ReLU()
                              )
-        self.l2 = Sequential(Linear(256, 4, bias=False))
+        self.l2 = Sequential(Linear(256, 4))
 
     def forward(self, state, neightbours):
         output = self.l1(state)
