@@ -61,7 +61,7 @@ class QAgent:
         self.global_lr_scheduler = torch.optim.lr_scheduler.StepLR(self.global_opt, step_size=30, gamma=0.1)
 
         self.mse = torch.nn.MSELoss(reduction='mean')
-
+        self.bin_cross = torch.nn.BCELoss(reduction='mean')
         self.step = 1
         self.episode = 0
         self.step_episode = 0
@@ -173,18 +173,18 @@ class QAgent:
         r_t = r_t.to(self._device)
         s_t1 = s_t1.float().to(self._device)
         extra_t1 = extra_t1.to(self._device)
-        exp_rew_t, aux_data = self.brain(s_t, extra_t)
+        exp_rew_t, pl_pos__dst, p_obs, p_empty = self.brain(s_t, extra_t)
         exp_rew_t = exp_rew_t[a_t]
         exp_rew_t1, _ = self.q_future(s_t1, extra_t1)
         exp_rew_t1 = torch.max(exp_rew_t1, dim=1)
         if isinstance(exp_rew_t1, tuple):
             exp_rew_t1 = exp_rew_t1[0]
         qloss = self.mse(r_t + discount_factor * exp_rew_t1, exp_rew_t)
-        aux_loss = self.mse(aux_data[:, 0], sum(extra_t[:, 4 + i * 4] for i in range(4))) +\
-                   self.mse(aux_data[:, 1], sum(extra_t[:, 5 + i * 4] for i in range(4))) +\
-                   self.mse(aux_data[:, 2:4], extra_t[:, :2]) +\
-                   self.mse(aux_data[:, 4:], extra_t[:, 2:4])
-        qloss += aux_loss
+        aux_loss = self.bin_cross(p_empty, extra_t[:, 4::4]) +\
+                   self.bin_cross(p_obs, extra_t[:, 5::4]) +\
+                   self.mse(pl_pos__dst[:, :2], extra_t[:, :2]) +\
+                   self.mse(pl_pos__dst[:, 2:4], extra_t[:, 2:4])
+        qloss += 0.5 * aux_loss
         del s_t, extra_t, a_t, r_t, s_t1,  extra_t1, exp_rew_t, exp_rew_t1
         qloss = torch.mean(qloss)
         qloss.backward()

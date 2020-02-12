@@ -51,21 +51,46 @@ class QValueModule(Module):
         return self.l3(output)
 
 
-class AuxModule(Module):
+class Aux1Module(Module):
     """
     This module estimate given the output of the visual cortex
-    the number of empty, block cells around the robot
-    the position of the robot and distance from the
-    destination
+    the robot position and the distance from the destination
     """
 
     def __init__(self):
         super().__init__()
         self.l1 = Sequential(Linear(512, 256), BatchNorm1d(256), ReLU())
-        self.l2 = Sequential(Linear(256, 6))
+        self.l2 = Sequential(Linear(256, 4))
 
     def forward(self, input):
         return self.l2(self.l1(input))
+
+class Aux2Module(Module):
+    """
+    This module estimate given the output of the visual cortex
+    the number of obstacles around the player
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.l1 = Sequential(Linear(512, 4), Sigmoid())
+
+    def forward(self, input):
+        return self.l1(input)
+
+class Aux3Module(Module):
+    """
+    This module estimate given the output of the visual cortex
+    the number of empty blocks around the player
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.l1 = Sequential(Linear(512, 4), Sigmoid())
+
+    def forward(self, input):
+        return self.l1(input)
+
 
 
 class BrainV1(Module):
@@ -74,10 +99,14 @@ class BrainV1(Module):
         super().__init__()
         self.visual = VisualCortex(state_size)
         self.q_est = QValueModule([512], extradata_size)
-        self.aux = AuxModule()
+        self.aux1 = Aux1Module()
+        self.aux2 = Aux2Module()
+        self.aux3 = Aux3Module()
 
     def forward(self, state, extra):
         vis_output = self.visual(state)
         output = self.q_est(vis_output, extra)
-        aux_output = self.aux(vis_output)
-        return output, aux_output
+        pl_pos_distance_sol = self.aux1(vis_output)
+        p_obs = self.aux2(vis_output)
+        p_empty = self.aux3(vis_output)
+        return output, pl_pos_distance_sol, p_obs, p_empty
