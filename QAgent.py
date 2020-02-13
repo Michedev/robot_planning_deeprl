@@ -114,7 +114,7 @@ class QAgent:
         grid = grid.to(self._device)
         extradata = extradata.to(self._device)
         self.brain.eval()
-        q_values, *_ = self.brain(grid, extradata)
+        q_values = self.brain(grid, extradata)
         q_values = torch.squeeze(q_values)
         if random() > self.epsilon:
             i = int(torch.argmax(q_values))
@@ -173,18 +173,13 @@ class QAgent:
         r_t = r_t.to(self._device)
         s_t1 = s_t1.float().to(self._device)
         extra_t1 = extra_t1.to(self._device)
-        exp_rew_t, pl_pos__dst, p_obs, p_empty = self.brain(s_t, extra_t)
+        exp_rew_t = self.brain(s_t, extra_t)
         exp_rew_t = exp_rew_t[a_t]
-        exp_rew_t1, *_ = self.q_future(s_t1, extra_t1)
+        exp_rew_t1 = self.q_future(s_t1, extra_t1)
         exp_rew_t1 = torch.max(exp_rew_t1, dim=1)
         if isinstance(exp_rew_t1, tuple):
             exp_rew_t1 = exp_rew_t1[0]
         qloss = self.mse(r_t + discount_factor * exp_rew_t1, exp_rew_t)
-        aux_loss = self.bin_cross(p_empty, extra_t[:, 4::4]) +\
-                   self.bin_cross(p_obs, extra_t[:, 5::4]) +\
-                   self.mse(pl_pos__dst[:, :2], extra_t[:, :2]) +\
-                   self.mse(pl_pos__dst[:, 2:4], extra_t[:, 2:4])
-        qloss += 0.5 * aux_loss
         del s_t, extra_t, a_t, r_t, s_t1,  extra_t1, exp_rew_t, exp_rew_t1
         qloss = torch.mean(qloss)
         qloss.backward()
