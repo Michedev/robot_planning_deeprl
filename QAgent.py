@@ -54,10 +54,10 @@ class QAgent:
             self.brain.load_state_dict(torch.load(BRAINFILE))
         self.q_future = BrainV1(self.grid_shape, [self.extra_shape]).to(self._device)
         self._q_value_hat = 0
-        self.task_opt = torch.optim.RMSprop(self.brain.parameters(), lr=0.0006, momentum=0.9)
+        self.task_opt = torch.optim.Adam(self.brain.parameters(), lr=0.0002)
         self.task_lr_scheduler = torch.optim.lr_scheduler.StepLR(self.task_opt, step_size=30, gamma=0.1)
 
-        self.global_opt = torch.optim.RMSprop(self.brain.parameters(), lr=0.0006, momentum=0.9)
+        self.global_opt = torch.optim.Adam(self.brain.parameters(), lr=0.0002)
         self.global_lr_scheduler = torch.optim.lr_scheduler.StepLR(self.global_opt, step_size=30, gamma=0.1)
 
         self.mse = torch.nn.MSELoss(reduction='mean')
@@ -72,8 +72,6 @@ class QAgent:
         self.destination_position = None
         print(torch.cuda.memory_summary())
         self.meta_learning = meta_learning
-
-
         if AGENTDATA.exists():
             with open(AGENTDATA) as f:
                 data = json.load(f)
@@ -81,9 +79,6 @@ class QAgent:
             self.episode = data['episode']
 
         self.experience_buffer = ExperienceBuffer(self.grid_shape, self.extra_shape)
-
-    def brain_section(self, section):
-        raise NotImplementedError()
 
     def extra_features(self, grid, my_pos, destination_pos):
         result = torch.zeros(2 + 2 + 4 * 4, device='cpu')
@@ -114,8 +109,7 @@ class QAgent:
         grid = grid.to(self._device)
         extradata = extradata.to(self._device)
         self.brain.eval()
-        q_values = self.brain(grid, extradata)
-        q_values = torch.squeeze(q_values)
+        q_values = self.brain(grid, extradata).squeeze()
         if random() > self.epsilon:
             i = int(torch.argmax(q_values))
         else:
@@ -140,10 +134,17 @@ class QAgent:
         grid = grid.reshape(self.grid_shape)
         grid = torch.from_numpy(grid)
         self.experience_buffer.put_r_t(grid_name, reward)
-        self.experience_buffer.put_s_t1(grid_name, grid)
+        self.experience_buffer.put_s_t1(grid_name, grid, decrease=0)
         extra = self.extra_features(grid, player_position, self.destination_position)
-        self.experience_buffer.put_extra_t1(grid_name, extra)
-
+        self.experience_buffer.put_extra_t1(grid_name, extra, decrease=0)
+        if self.experience_buffer.i_buffers[grid_name] >= 1:
+            self.experience_buffer.put_r_t1(grid_name, reward)
+            self.experience_buffer.put_s_t1(grid_name, grid, decrease=1)
+            self.experience_buffer.put_extra_t1(grid_name, extra, decrease=1)
+        if self.experience_buffer.i_buffers[grid_name] >= 2:
+            self.experience_buffer.put_r_t2(grid_name, reward)
+            self.experience_buffer.put_s_t1(grid_name, grid, decrease=2)
+            self.experience_buffer.put_extra_t1(grid_name, extra, decrease=2)
         if self.step % 1000 == 0 and self.step > 0:
             self.q_future.load_state_dict(self.brain.state_dict())
             gc.collect()
@@ -155,18 +156,18 @@ class QAgent:
     def experience_update(self, discount_factor):
         self.brain.train()
         for task in self.experience_buffer.task_names:
-            s_t, extra_t, a_t, r_t, s_t1, extra_t1 = self.experience_buffer.sample_same_task(task, 128)
-            qloss = self._train_step(s_t, extra_t, a_t, r_t, s_t1, extra_t1, discount_factor, is_task=True)
+            s_t, extra_t, a_t, r_t, s_t1, extra_t1, r_t1, r_t2 = self.experience_buffer.sample_same_task(task, 128)
+            qloss = self._train_step(s_t, extra_t, a_t, r_t, s_t1, extra_t1, r_t1, r_t2, discount_factor, is_task=True)
         if self.meta_learning:
-          s_t, extra_t, a_t, r_t, s_t1, extra_t1 = self.experience_buffer.sample_all_tasks(16)
-          qloss = self._train_step(s_t, extra_t, a_t, r_t, s_t1, extra_t1, discount_factor, is_task=False)
+          s_t, extra_t, a_t, r_t, s_t1, extra_t1, r_t1, r_t2 = self.experience_buffer.sample_all_tasks(16)
+          qloss = self._train_step(s_t, extra_t, a_t, r_t, s_t1, extra_t1, r_t1, r_t2, discount_factor, is_task=False)
         if self.step % 10 == 0:
             self.writer.add_scalar('q loss', qloss, self.step)
         if self.step % 100 == 0:
             for i, l in enumerate(self.brain.parameters(recurse=True)):
                 self.writer.add_histogram(f'{type(l)} {i}', l, self.step)
 
-    def _train_step(self, s_t, extra_t, a_t, r_t, s_t1, extra_t1, discount_factor, is_task=True):
+    def _train_step(self, s_t, extra_t, a_t, r_t, s_t1, extra_t1, r_t1, r_t2, discount_factor, is_task=True):
         s_t = s_t.float().to(self._device)
         extra_t = extra_t.to(self._device)
         a_t = (a_t.unsqueeze(-1) == torch.arange(4).unsqueeze(0)).to(self._device)
@@ -175,12 +176,12 @@ class QAgent:
         extra_t1 = extra_t1.to(self._device)
         exp_rew_t = self.brain(s_t, extra_t)
         exp_rew_t = exp_rew_t[a_t]
-        exp_rew_t1 = self.q_future(s_t1, extra_t1)
-        exp_rew_t1 = torch.max(exp_rew_t1, dim=1)
-        if isinstance(exp_rew_t1, tuple):
-            exp_rew_t1 = exp_rew_t1[0]
-        qloss = self.mse(r_t + discount_factor * exp_rew_t1, exp_rew_t)
-        del s_t, extra_t, a_t, r_t, s_t1,  extra_t1, exp_rew_t, exp_rew_t1
+        exp_rew_t3 = self.q_future(s_t1, extra_t1)
+        exp_rew_t3 = torch.max(exp_rew_t3, dim=1)
+        if isinstance(exp_rew_t3, tuple):
+            exp_rew_t3 = exp_rew_t3[0]
+        qloss = self.mse(r_t + discount_factor * r_t1 + discount_factor**2 * r_t2 + discount_factor**3 * exp_rew_t3, exp_rew_t)
+        del s_t, extra_t, a_t, r_t, s_t1,  extra_t1, exp_rew_t, exp_rew_t3
         qloss = torch.mean(qloss)
         qloss.backward()
         opt = self.task_opt if is_task else self.global_opt

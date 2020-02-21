@@ -28,9 +28,12 @@ class ExperienceBuffer:
             torch.zeros(num_rows, *self.grid_shape, dtype=torch.float32, device='cpu'),  # s_t
             torch.zeros(num_rows, self.extra_shape, dtype=torch.float32, device='cpu'),  # extra_data_t
             torch.zeros(num_rows, dtype=torch.int8, device='cpu'),  # action
-            torch.zeros(num_rows, dtype=torch.float32, device='cpu'),  # reward
+            torch.zeros(num_rows, dtype=torch.float32, device='cpu'),  # reward_t
             torch.zeros(num_rows, *self.grid_shape, dtype=torch.float32, device='cpu'),  # s_t1
-            torch.zeros(num_rows, self.extra_shape, dtype=torch.float32, device='cpu')]  # extra_data_t1
+            torch.zeros(num_rows, self.extra_shape, dtype=torch.float32, device='cpu'), # extra_data_t1
+            torch.zeros(num_rows, dtype=torch.float32, device='cpu'),  # reward_t1
+            torch.zeros(num_rows, dtype=torch.float32, device='cpu')  # reward_t2
+        ]
 
     def put_s_t(self, name: str, value):
         self.experience_buffers[name][0][self.i_buffers[name]] = value
@@ -44,11 +47,18 @@ class ExperienceBuffer:
     def put_r_t(self, name: str, value):
         self.experience_buffers[name][3][self.i_buffers[name]] = value
 
-    def put_s_t1(self, name: str, value):
-        self.experience_buffers[name][4][self.i_buffers[name]] = value
 
-    def put_extra_t1(self, name: str, value):
-        self.experience_buffers[name][5][self.i_buffers[name]] = value
+    def put_s_t1(self, name: str, value, decrease=0):
+        self.experience_buffers[name][4][self.i_buffers[name]-decrease] = value
+
+    def put_extra_t1(self, name: str, value, decrease=0):
+        self.experience_buffers[name][5][self.i_buffers[name]-decrease] = value
+
+    def put_r_t1(self, name: str, value):
+        self.experience_buffers[name][6][self.i_buffers[name]-1] = value
+
+    def put_r_t2(self, name: str, value):
+        self.experience_buffers[name][7][self.i_buffers[name]-2] = value
 
     def increase_i(self, name: str):
         self.i_buffers[name] += 1
@@ -58,7 +68,7 @@ class ExperienceBuffer:
 
     def sample_same_task(self, name: str, batch_size=128):
         i_batch = torch.randint(0, self.experience_sizes[name], [batch_size])
-        return [self.experience_buffers[name][i][i_batch] for i in range(6)]
+        return [self.experience_buffers[name][i][i_batch] for i in range(8)]
 
     def sample_all_tasks(self, per_batch_size=16):
         tasks = self.task_names

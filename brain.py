@@ -11,7 +11,7 @@ from torch.nn import *
 
 class ResidualBlock(Module):
 
-    def __init__(self, in_filters: int, out_filters: int, num_convs: int = 3):
+    def __init__(self, in_filters: int, out_filters: int, num_convs: int = 3, dropout=0.3):
         super(ResidualBlock, self).__init__()
         self.layers = []
         for i in range(num_convs):
@@ -21,7 +21,7 @@ class ResidualBlock(Module):
             self.layers.append(block)
         self.layers = Sequential(*self.layers)
         self.conv1x1 = Conv2d(in_filters, out_filters, kernel_size=1)
-        self.dropout = Dropout2d(0.9)
+        self.dropout = Dropout2d(dropout)
         self.maxpool = MaxPool2d(2)
 
     def forward(self, input):
