@@ -168,6 +168,8 @@ class QAgent:
                 self.writer.add_histogram(f'{type(l)} {i}', l, self.step)
 
     def _train_step(self, s_t, extra_t, a_t, r_t, s_t1, extra_t1, r_t1, r_t2, discount_factor, is_task=True):
+        opt = self.task_opt if is_task else self.global_opt
+        opt.zero_grad()
         s_t = s_t.float().to(self._device)
         extra_t = extra_t.to(self._device)
         a_t = (a_t.unsqueeze(-1) == torch.arange(4).unsqueeze(0)).to(self._device)
@@ -184,8 +186,6 @@ class QAgent:
         del s_t, extra_t, a_t, r_t, s_t1,  extra_t1, exp_rew_t, exp_rew_t3
         qloss = torch.mean(qloss)
         qloss.backward()
-        opt = self.task_opt if is_task else self.global_opt
-        opt.zero_grad()
         gc.collect()
         opt.step()
         return qloss
