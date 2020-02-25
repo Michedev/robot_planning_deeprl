@@ -54,11 +54,11 @@ class QAgent:
             self.brain.load_state_dict(torch.load(BRAINFILE))
         self.q_future = BrainV1(self.grid_shape, [self.extra_shape]).to(self._device)
         self._q_value_hat = 0
-        self.task_opt = rmsprop.RMSprop(self.brain.parameters(), lr=0.0002, momentum=0.8)
-        self.task_lr_scheduler = torch.optim.lr_scheduler.StepLR(self.task_opt, step_size=30, gamma=0.1)
+        self.task_opt = SGD(self.brain.parameters(), lr=0.0002, momentum=0.8)
+        self.task_lr_scheduler = torch.optim.lr_scheduler.StepLR(self.task_opt, step_size=30, gamma=0.8)
 
-        self.global_opt = rmsprop.RMSprop(self.brain.parameters(), lr=0.0002, momentum=0.9)
-        self.global_lr_scheduler = torch.optim.lr_scheduler.StepLR(self.global_opt, step_size=30, gamma=0.1)
+        self.global_opt = SGD(self.brain.parameters(), lr=0.0002, momentum=0.9)
+        self.global_lr_scheduler = torch.optim.lr_scheduler.StepLR(self.global_opt, step_size=30, gamma=0.8)
 
         self.mse = torch.nn.MSELoss(reduction='mean')
         self.bin_cross = torch.nn.BCELoss(reduction='mean')
@@ -95,6 +95,8 @@ class QAgent:
         return result
 
     def decide(self, grid_name, grid, my_pos, destination_pos):
+        if self.step % 1000 == 0:
+          self.writer.add_image('grid', np.sum(grid * np.arange(1,5).reshape((1,1,4)), axis=-1), self.step)
         if not self.meta_learning:
             grid_name = 'a'
         self.brain.eval()
@@ -163,8 +165,9 @@ class QAgent:
           qloss = self._train_step(s_t, extra_t, a_t, r_t, s_t1, extra_t1, r_t1, r_t2, discount_factor, is_task=False)
         else:
             for _ in range(2):
-                s_t, extra_t, a_t, r_t, s_t1, extra_t1, r_t1, r_t2 = self.experience_buffer.sample_same_task(task, 128)
-                qloss = self._train_step(s_t, extra_t, a_t, r_t, s_t1, extra_t1, r_t1, r_t2, discount_factor, is_task=True)
+              for task in self.experience_buffer.task_names:
+                  s_t, extra_t, a_t, r_t, s_t1, extra_t1, r_t1, r_t2 = self.experience_buffer.sample_same_task(task, 128)
+                  qloss = self._train_step(s_t, extra_t, a_t, r_t, s_t1, extra_t1, r_t1, r_t2, discount_factor, is_task=True)
 
         if self.step % 10 == 0:
             self.writer.add_scalar('q loss', qloss, self.step)
@@ -209,5 +212,5 @@ class QAgent:
         with open(AGENTDATA, mode='w') as f:
             json.dump(dict(step=self.step, episode=self.episode), f)
 
-        self.update_freq = min(self.update_freq + self.episode, 200)
+        self.update_freq = min(int(self.update_freq + self.episode/10), 200)
 
