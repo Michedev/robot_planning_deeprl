@@ -21,6 +21,7 @@ class Game:
         self.min_distance = (self.grid.w * self.grid.h) ** 2
         self.first_run = True
         self.first_turn = True
+        self.counter_failures = 0
         # self.frames = []
         self.turn = 0
         self.counter_game = 0
@@ -65,16 +66,15 @@ class Game:
                 return 1, 1
             cells_explored = self.explore_cells(new_pos)
             # extra = self.calc_extra_reward(cells_explored, new_pos, old_position)
-            reward = - 0.01
+            reward = -0.02
             return 0, reward
         return -1, -0.5
 
     def calc_extra_reward(self, cells_explored, new_position: Point, prev_position: Point):
         curr_distance = new_position.manhattan_distance(self.grid.destination_position)
-        prev_distance = prev_position.manhattan_distance(self.grid.destination_position)
         extra_reward = curr_distance / (self.grid.h + self.grid.w)
-        extra_reward = 1 - extra_reward
-        extra_reward *= sign(prev_distance - curr_distance) * 0.1
+        extra_reward = -0.02
+        # extra_reward *= 0.1
         # extra_reward += 0.0001 * cells_explored
         return extra_reward
 
@@ -93,7 +93,7 @@ class Game:
                   'Player pos', self.player_position)
         self.agent.get_reward(self.grid_name, self.grid.as_int(), reward, self.player_position)
         self.turn += 1
-        return move_result
+        return move_result, reward
 
     def play_game(self):
         self.agent.reset()
@@ -104,9 +104,16 @@ class Game:
         move_result = -1
         counter_moves = 0
         self.first_turn = True
+        tot_reward = 0
+        threshold_reward = -0.1 * self.grid.w * self.grid.h
         while move_result != 1:
-            move_result = self.run_turn()
+            move_result, reward = self.run_turn()
             counter_moves += 1
+            tot_reward += reward
+            if threshold_reward > tot_reward:
+                print('too much time to reach destination, fail')
+                self.counter_failures += 1
+                break
         # self._make_gif(self.frames)
         gc.collect()
         self.counter_game += 1
@@ -114,6 +121,10 @@ class Game:
         print('=' * 100)
         print(f'\n\tmoves to reach destination: {counter_moves}')
         print('=' * 100)
+        if self.counter_game % 10 == 0:
+            win_rate = 1.0 - self.counter_failures / 10
+            self.agent.writer.add_scalar('win rate', win_rate, global_step=self.counter_game)
+            self.counter_failures = 0
         return counter_moves
 
     def load_from_file(self, fname):

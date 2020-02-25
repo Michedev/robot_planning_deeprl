@@ -3,16 +3,17 @@ import gc
 from path import Path
 # from torchsummary import summary
 import numpy as np
-from tensorboardX import SummaryWriter
+from torch.utils.tensorboard import SummaryWriter
 
 from brain import BrainV1, QValueModule, VisualCortex
 import torch
 from typing import List
 from grid import Direction
 from random import random, randint
-from modelsummary import summary
+#from modelsummary import summary
 from experience_buffer import ExperienceBuffer
 import json
+from torch.optim import SGD, rmsprop
 
 has_gpu = torch.cuda.is_available()
 
@@ -23,7 +24,7 @@ AGENTDATA = FOLDER / 'agent.json'
 
 class QAgent:
 
-    def __init__(self, grid_shape, discount_factor=0.8, experience_size=500_000, update_q_fut=1000,
+    def __init__(self, grid_shape, discount_factor=0.9, experience_size=500_000, update_q_fut=1000,
                  sample_experience=128, update_freq=4, no_update_start=5_000, meta_learning=False):
         '''
         :param grid_shape:
@@ -44,7 +45,6 @@ class QAgent:
         self.grid_shape = list(grid_shape)
         self.grid_shape[-1], self.grid_shape[0] = self.grid_shape[0], self.grid_shape[-1]
         self.grid_shape[0] -= 1
-        self.grid_shape[0] += 2
         self.extra_shape = 2 + 2 + 4 * 4
         self._device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.brain = BrainV1(self.grid_shape, [self.extra_shape]).to(self._device)  # up / down / right / left
@@ -54,10 +54,10 @@ class QAgent:
             self.brain.load_state_dict(torch.load(BRAINFILE))
         self.q_future = BrainV1(self.grid_shape, [self.extra_shape]).to(self._device)
         self._q_value_hat = 0
-        self.task_opt = torch.optim.Adam(self.brain.parameters(), lr=0.0002)
+        self.task_opt = rmsprop.RMSprop(self.brain.parameters(), lr=0.0002, momentum=0.8)
         self.task_lr_scheduler = torch.optim.lr_scheduler.StepLR(self.task_opt, step_size=30, gamma=0.1)
 
-        self.global_opt = torch.optim.Adam(self.brain.parameters(), lr=0.0002)
+        self.global_opt = rmsprop.RMSprop(self.brain.parameters(), lr=0.0002, momentum=0.9)
         self.global_lr_scheduler = torch.optim.lr_scheduler.StepLR(self.global_opt, step_size=30, gamma=0.1)
 
         self.mse = torch.nn.MSELoss(reduction='mean')
@@ -70,7 +70,7 @@ class QAgent:
         self._curiosity_values = None
         self.experience_max_size = experience_size
         self.destination_position = None
-        print(torch.cuda.memory_summary())
+        #print(torch.cuda.memory_summary())
         self.meta_learning = meta_learning
         if AGENTDATA.exists():
             with open(AGENTDATA) as f:
@@ -83,7 +83,7 @@ class QAgent:
     def extra_features(self, grid, my_pos, destination_pos):
         result = torch.zeros(2 + 2 + 4 * 4, device='cpu')
         w, h = grid.shape[1:3]
-        result[:4] = torch.FloatTensor([my_pos[0] / w, my_pos[1] / h, (destination_pos[0] - my_pos[0]) / w, (destination_pos[1] - my_pos[1]) / h])
+        result[:4] = torch.FloatTensor([my_pos[0] / w, my_pos[1] / h, destination_pos[0] / w, destination_pos[1] / h])
         i = 0
         for direction in [Direction.North, Direction.South, Direction.Est, Direction.West]:
             val_direction = direction.value
@@ -161,11 +161,16 @@ class QAgent:
         if self.meta_learning:
           s_t, extra_t, a_t, r_t, s_t1, extra_t1, r_t1, r_t2 = self.experience_buffer.sample_all_tasks(16)
           qloss = self._train_step(s_t, extra_t, a_t, r_t, s_t1, extra_t1, r_t1, r_t2, discount_factor, is_task=False)
+        else:
+            for _ in range(2):
+                s_t, extra_t, a_t, r_t, s_t1, extra_t1, r_t1, r_t2 = self.experience_buffer.sample_same_task(task, 128)
+                qloss = self._train_step(s_t, extra_t, a_t, r_t, s_t1, extra_t1, r_t1, r_t2, discount_factor, is_task=True)
+
         if self.step % 10 == 0:
             self.writer.add_scalar('q loss', qloss, self.step)
         if self.step % 100 == 0:
-            for i, l in enumerate(self.brain.parameters(recurse=True)):
-                self.writer.add_histogram(f'{type(l)} {i}', l, self.step)
+            for lname, params in self.brain.state_dict().items():
+                self.writer.add_histogram(lname.replace('.', '/'), params, global_step=self.step)
 
     def _train_step(self, s_t, extra_t, a_t, r_t, s_t1, extra_t1, r_t1, r_t2, discount_factor, is_task=True):
         opt = self.task_opt if is_task else self.global_opt
@@ -176,9 +181,11 @@ class QAgent:
         r_t = r_t.to(self._device)
         s_t1 = s_t1.float().to(self._device)
         extra_t1 = extra_t1.to(self._device)
+        r_t1 = r_t1.to(self._device)
+        r_t2 = r_t2.to(self._device)
         exp_rew_t = self.brain(s_t, extra_t)
         exp_rew_t = exp_rew_t[a_t]
-        exp_rew_t3 = self.q_future(s_t1, extra_t1)
+        exp_rew_t3 = ((torch.ne(r_t,  1.0) & torch.ne(r_t1, 1.0)) & torch.ne(r_t2, 1.0)).float().unsqueeze(-1) * self.q_future(s_t1, extra_t1)
         exp_rew_t3 = torch.max(exp_rew_t3, dim=1)
         if isinstance(exp_rew_t3, tuple):
             exp_rew_t3 = exp_rew_t3[0]

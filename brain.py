@@ -9,9 +9,11 @@ from abc import ABC, abstractmethod, abstractproperty
 from operator import mul
 from torch.nn import *
 
+
+
 class ResidualBlock(Module):
 
-    def __init__(self, in_filters: int, out_filters: int, num_convs: int = 3, dropout=0.3):
+    def __init__(self, in_filters: int, out_filters: int, num_convs: int = 2, dropout=0.1):
         super(ResidualBlock, self).__init__()
         self.layers = []
         for i in range(num_convs):
@@ -39,16 +41,16 @@ class VisualCortex(Module):
 
     def __init__(self, input_size: Union[List[int], Tuple[int]]):
         super().__init__()
-        self.l1 = ResidualBlock(input_size[0], 64)
-        self.l2 = ResidualBlock(64, 64)
-        self.l3 = ResidualBlock(64, 64)
-
-
+        self.l1 = Sequential(Conv2d(4, 32, kernel_size=3, bias=False), LeakyReLU())
+        self.l2 = Sequential(Conv2d(32, 64, kernel_size=3, bias=False), LeakyReLU())
+        self.avgpool = AvgPool2d(4)
+        self.l3 = Sequential(Conv2d(64, 128, kernel_size=3, bias=False), LeakyReLU())
 
     def forward(self, input: torch.Tensor):
         output = self.l1(input)
         output = self.l2(output)
         output = self.l3(output)
+        output = self.avgpool(output)
         output = torch.flatten(output, start_dim=1)
         return output
 
@@ -57,14 +59,15 @@ class QValueModule(Module):
 
     def __init__(self, input_shape1: List[int], input_shape2: List[int]):
         super().__init__()
-        self.l1 = Sequential(Linear(64, 32),
+        self.l1 = Sequential(Linear(128, 32, bias=False),
                              BatchNorm1d(32),
-                             ReLU()
+                             LeakyReLU(0.1)
                              )
-        self.l2 = Sequential(Linear(32, 4))
+        self.l2 = Sequential(Linear(32 + input_shape2[-1], 4, bias=False))
 
     def forward(self, state, neightbours):
         output = self.l1(state)
+        output = torch.cat([output, neightbours], dim=-1)
         return self.l2(output)
 
 

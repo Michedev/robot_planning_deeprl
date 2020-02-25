@@ -12,7 +12,7 @@ g = None
 maps = MAPS.files('*.txt')
 seed(13)
 first = True
-for round in range(100):
+for round in range(3000):
     if first:
         maps = sorted(maps)
         first = False
