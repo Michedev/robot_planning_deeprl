@@ -169,5 +169,3 @@ class Grid:
                 if not grid[i, j, 0]: #i.e. if explored
                     public_grid[i,j,:] = grid[i,j,:]
         return public_grid
-
-
