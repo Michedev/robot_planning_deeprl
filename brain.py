@@ -41,16 +41,10 @@ class VisualCortex(Module):
 
     def __init__(self, input_size: Union[List[int], Tuple[int]]):
         super().__init__()
-        self.l1 = Sequential(Conv2d(4, 32, kernel_size=3, bias=False), LeakyReLU())
-        self.l2 = Sequential(Conv2d(32, 64, kernel_size=3, bias=False), LeakyReLU())
-        self.avgpool = AvgPool2d(4)
-        self.l3 = Sequential(Conv2d(64, 128, kernel_size=3, bias=False), LeakyReLU())
+        self.l1 = Sequential(Conv2d(4, 1, kernel_size=3, bias=True))
 
     def forward(self, input: torch.Tensor):
         output = self.l1(input)
-        output = self.l2(output)
-        output = self.l3(output)
-        output = self.avgpool(output)
         output = torch.flatten(output, start_dim=1)
         return output
 
@@ -59,15 +53,15 @@ class QValueModule(Module):
 
     def __init__(self, input_shape1: List[int], input_shape2: List[int]):
         super().__init__()
-        self.l1 = Sequential(Linear(128, 32, bias=False),
-                             BatchNorm1d(32),
+        self.l1 = Sequential(Linear(10 * 10 * 1 + input_shape2[-1], 64, bias=True),
+                             BatchNorm1d(64),
                              LeakyReLU(0.1)
                              )
-        self.l2 = Sequential(Linear(32 + input_shape2[-1], 4, bias=False))
+        self.l2 = Sequential(Linear(64 , 4, bias=True))
 
     def forward(self, state, neightbours):
-        output = self.l1(state)
-        output = torch.cat([output, neightbours], dim=-1)
+        output = torch.cat([state, neightbours], dim=-1)
+        output = self.l1(output)
         return self.l2(output)
 
 
