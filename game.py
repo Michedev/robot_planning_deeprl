@@ -105,7 +105,7 @@ class Game:
         counter_moves = 0
         self.first_turn = True
         tot_reward = 0
-        threshold_reward = -0.4 * self.grid.w * self.grid.h
+        threshold_reward = -0.34 * self.grid.w * self.grid.h
         while move_result != 1:
             move_result, reward = self.run_turn()
             counter_moves += 1
