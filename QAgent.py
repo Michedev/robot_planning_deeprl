@@ -13,6 +13,7 @@ from random import random, randint
 #from modelsummary import summary
 from experience_buffer import ExperienceBuffer
 import json
+# from opt import RAdam
 from torch.optim import SGD, rmsprop
 
 has_gpu = torch.cuda.is_available()
@@ -54,10 +55,10 @@ class QAgent:
             self.brain.load_state_dict(torch.load(BRAINFILE))
         self.q_future = BrainV1(self.grid_shape, [self.extra_shape]).to(self._device)
         self._q_value_hat = 0
-        self.task_opt = SGD(self.brain.parameters(), lr=0.0002, momentum=0.8)
+        self.task_opt = rmsprop.RMSprop(self.brain.parameters(), lr=0.0002, momentum=0.6)
         self.task_lr_scheduler = torch.optim.lr_scheduler.StepLR(self.task_opt, step_size=30, gamma=0.8)
 
-        self.global_opt = SGD(self.brain.parameters(), lr=0.0002, momentum=0.9)
+        self.global_opt = rmsprop.RMSprop(self.brain.parameters(), lr=0.0002, momentum=0.6)
         self.global_lr_scheduler = torch.optim.lr_scheduler.StepLR(self.global_opt, step_size=30, gamma=0.8)
 
         self.mse = torch.nn.MSELoss(reduction='mean')
@@ -83,7 +84,7 @@ class QAgent:
     def extra_features(self, grid, my_pos, destination_pos):
         result = torch.zeros(2 + 2 + 4 * 4, device='cpu')
         w, h = grid.shape[1:3]
-        result[:4] = torch.FloatTensor([my_pos[0] / w, my_pos[1] / h, destination_pos[0] / w, destination_pos[1] / h])
+        result[:4] = torch.FloatTensor([my_pos[0] / w, my_pos[1] / h, (destination_pos[0] - my_pos[0]) / w, (destination_pos[1] - my_pos[1]) / h])
         i = 0
         for direction in [Direction.North, Direction.South, Direction.Est, Direction.West]:
             val_direction = direction.value
@@ -95,8 +96,8 @@ class QAgent:
         return result
 
     def decide(self, grid_name, grid, my_pos, destination_pos):
-        if self.step % 1000 == 0:
-          self.writer.add_image('grid', np.sum(grid * np.arange(1,5).reshape((1,1,4)), axis=-1), self.step)
+        if self.step % 100 == 0:
+          self.writer.add_image(grid_name, np.expand_dims(np.sum(grid * np.arange(1,5).reshape((1,1,4)), axis=-1) / 4.0, axis=0), self.step)
         if not self.meta_learning:
             grid_name = 'a'
         self.brain.eval()
@@ -117,15 +118,16 @@ class QAgent:
         else:
             i = randint(0, 3)
         self._q_value_hat = q_values[i]
-        self.writer.add_scalar('q value up', q_values[0], self.step)
-        self.writer.add_scalar('q value down', q_values[1], self.step)
-        self.writer.add_scalar('q value left', q_values[2], self.step)
-        self.writer.add_scalar('q value right', q_values[3], self.step)
-        self.writer.add_scalar('expected reward', self._q_value_hat, self.step)
-        self.writer.add_scalar('action took', i, self.step)
+        self.writer.add_scalar('q_value/up', q_values[0], self.step)
+        self.writer.add_scalar('q_value/down', q_values[1], self.step)
+        self.writer.add_scalar('q_value/left', q_values[2], self.step)
+        self.writer.add_scalar('q_value/right', q_values[3], self.step)
+        self.writer.add_scalars('q_values', {'up': q_values[0], 'down': q_values[1], 'left': q_values[2], 'right': q_values[3]}, self.step)
+        self.writer.add_scalar('q_value/expected_reward', self._q_value_hat, self.step)
+        self.writer.add_scalar('q_value/action', i, self.step)
         self.experience_buffer.put_extra_t(grid_name, extradata)
         self.experience_buffer.put_a_t(grid_name, i)
-        self.epsilon = max(0.05, self.epsilon - 0.0004)
+        self.epsilon = max(0.0, self.epsilon - 0.01)
         if self.step_episode % 1000 == 0:
             self.epsilon = 1.0
         return i
@@ -158,16 +160,15 @@ class QAgent:
     def experience_update(self, discount_factor):
         self.brain.train()
         for task in self.experience_buffer.task_names:
-            s_t, extra_t, a_t, r_t, s_t1, extra_t1, r_t1, r_t2 = self.experience_buffer.sample_same_task(task, 128)
+            s_t, extra_t, a_t, r_t, s_t1, extra_t1, r_t1, r_t2 = self.experience_buffer.sample_same_task(task, 32)
             qloss = self._train_step(s_t, extra_t, a_t, r_t, s_t1, extra_t1, r_t1, r_t2, discount_factor, is_task=True)
         if self.meta_learning:
           s_t, extra_t, a_t, r_t, s_t1, extra_t1, r_t1, r_t2 = self.experience_buffer.sample_all_tasks(16)
           qloss = self._train_step(s_t, extra_t, a_t, r_t, s_t1, extra_t1, r_t1, r_t2, discount_factor, is_task=False)
         else:
-            for _ in range(2):
-              for task in self.experience_buffer.task_names:
-                  s_t, extra_t, a_t, r_t, s_t1, extra_t1, r_t1, r_t2 = self.experience_buffer.sample_same_task(task, 128)
-                  qloss = self._train_step(s_t, extra_t, a_t, r_t, s_t1, extra_t1, r_t1, r_t2, discount_factor, is_task=True)
+            for task in self.experience_buffer.task_names:
+                s_t, extra_t, a_t, r_t, s_t1, extra_t1, r_t1, r_t2 = self.experience_buffer.sample_same_task(task, 32)
+                qloss = self._train_step(s_t, extra_t, a_t, r_t, s_t1, extra_t1, r_t1, r_t2, discount_factor, is_task=True)
 
         if self.step % 10 == 0:
             self.writer.add_scalar('q loss', qloss, self.step)
@@ -201,7 +202,7 @@ class QAgent:
         return qloss
 
     def reset(self):
-        self.epsilon = max(1.0 - 0.01 * self.episode, 0.1)
+        self.epsilon = max(1.0 - 0.01 * self.episode, 0.0)
         self.step_episode = 0
 
     def on_win(self):

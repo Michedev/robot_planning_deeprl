@@ -65,17 +65,16 @@ class Game:
             if self.grid.destination(new_pos.x, new_pos.y):
                 return 1, 1
             cells_explored = self.explore_cells(new_pos)
-            # extra = self.calc_extra_reward(cells_explored, new_pos, old_position)
-            reward = -0.02
+            reward = self.calc_extra_reward(cells_explored, new_pos, old_position)
+            # reward =  extra
             return 0, reward
         return -1, -0.75
 
     def calc_extra_reward(self, cells_explored, new_position: Point, prev_position: Point):
         curr_distance = new_position.manhattan_distance(self.grid.destination_position)
-        extra_reward = curr_distance / (self.grid.h + self.grid.w)
-        extra_reward = -0.02
-        # extra_reward *= 0.1
-        # extra_reward += 0.0001 * cells_explored
+        extra_reward = curr_distance / (self.grid.h + self.grid.w) / 10
+        extra_reward = 0.8 + extra_reward * 2
+        extra_reward = -0.03 * extra_reward
         return extra_reward
 
     def run_turn(self):
@@ -105,7 +104,7 @@ class Game:
         counter_moves = 0
         self.first_turn = True
         tot_reward = 0
-        threshold_reward = -0.4 * self.grid.w * self.grid.h
+        threshold_reward = -0.34 * self.grid.w * self.grid.h
         while move_result != 1:
             move_result, reward = self.run_turn()
             counter_moves += 1
