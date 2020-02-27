@@ -25,8 +25,8 @@ AGENTDATA = FOLDER / 'agent.json'
 
 class QAgent:
 
-    def __init__(self, grid_shape, discount_factor=0.9, experience_size=1_000_000, update_q_fut=1000,
-                 sample_experience=128, update_freq=4, no_update_start=5_000, meta_learning=True):
+    def __init__(self, grid_shape, discount_factor=0.9, experience_size=500_000, update_q_fut=1000,
+                 sample_experience=128, update_freq=4, no_update_start=500, meta_learning=False):
         '''
         :param grid_shape:
         :param discount_factor:
@@ -55,14 +55,15 @@ class QAgent:
             self.brain.load_state_dict(torch.load(BRAINFILE))
         self.q_future = BrainV1(self.grid_shape, [self.extra_shape]).to(self._device)
         self._q_value_hat = 0
-        self.task_opt = rmsprop.RMSprop(self.brain.parameters(), lr=0.0002, momentum=0.6)
+        self.task_opt = rmsprop.RMSprop(self.brain.parameters(), lr=0.0002, momentum=0.9)
         self.task_lr_scheduler = torch.optim.lr_scheduler.StepLR(self.task_opt, step_size=30, gamma=0.8)
 
-        self.global_opt = rmsprop.RMSprop(self.brain.parameters(), lr=0.0002, momentum=0.6)
+        self.global_opt = rmsprop.RMSprop(self.brain.parameters(), lr=0.0002, momentum=0.9)
         self.global_lr_scheduler = torch.optim.lr_scheduler.StepLR(self.global_opt, step_size=30, gamma=0.8)
 
         self.mse = torch.nn.MSELoss(reduction='mean')
         self.bin_cross = torch.nn.BCELoss(reduction='mean')
+        self.curiosity_loss = torch.nn.CrossEntropyLoss()
         self.step = 1
         self.episode = 0
         self.step_episode = 0
@@ -96,8 +97,8 @@ class QAgent:
         return result
 
     def decide(self, grid_name, grid, my_pos, destination_pos):
-        if self.step % 100 == 0:
-          self.writer.add_image(grid_name, np.expand_dims(np.sum(grid * np.arange(1,5).reshape((1,1,4)), axis=-1) / 4.0, axis=0), self.step)
+        if self.episode % 30 == 0:
+          self.writer.add_image(grid_name + '_episode_' + str(self.episode), np.expand_dims(np.sum(grid * np.arange(1,5).reshape((1,1,4)), axis=-1) / 4.0, axis=0), self.step_episode)
         if not self.meta_learning:
             grid_name = 'a'
         self.brain.eval()
@@ -187,13 +188,14 @@ class QAgent:
         extra_t1 = extra_t1.to(self._device)
         r_t1 = r_t1.to(self._device)
         r_t2 = r_t2.to(self._device)
-        exp_rew_t = self.brain(s_t, extra_t)
+        exp_rew_t, c_out = self.brain(s_t, extra_t, curiosity=True)
         exp_rew_t = exp_rew_t[a_t]
         exp_rew_t3 = ((torch.ne(r_t,  1.0) & torch.ne(r_t1, 1.0)) & torch.ne(r_t2, 1.0)).float().unsqueeze(-1) * self.q_future(s_t1, extra_t1)
         exp_rew_t3 = torch.max(exp_rew_t3, dim=1)
         if isinstance(exp_rew_t3, tuple):
             exp_rew_t3 = exp_rew_t3[0]
         qloss = self.mse(r_t + discount_factor * r_t1 + discount_factor**2 * r_t2 + discount_factor**3 * exp_rew_t3, exp_rew_t)
+        qloss += - c_out[extra_t1[:, -16:].reshape((-1, 4, 4)) == 1].mean()
         del s_t, extra_t, a_t, r_t, s_t1,  extra_t1, exp_rew_t, exp_rew_t3
         qloss = torch.mean(qloss)
         qloss.backward()
@@ -202,8 +204,7 @@ class QAgent:
         return qloss
 
     def reset(self):
-        self.epsilon = max(1.0 - 0.01 * self.episode, 0.0)
-        self.step_episode = 0
+        pass
 
     def on_win(self):
         self.writer.add_scalar('steps per episode', self.step_episode, self.episode)
@@ -214,6 +215,6 @@ class QAgent:
             json.dump(dict(step=self.step, episode=self.episode), f)
 
         self.update_freq = min(int(self.update_freq + self.episode/10), 30)
-        self.epsilon = max(1.0 - 0.01 * self.episode, 0.0)
+        self.epsilon = max(1.0 - 0.004 * self.episode, 0.0)
         self.step_episode = 0
 

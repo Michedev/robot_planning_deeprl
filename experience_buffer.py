@@ -47,6 +47,8 @@ class ExperienceBuffer:
     def put_r_t(self, name: str, value):
         self.experience_buffers[name][3][self.i_buffers[name]] = value
 
+    def get_r_t(self, name: str, decrease=0):
+        return self.experience_buffers[name][3][self.i_buffers[name]-decrease]
 
     def put_s_t1(self, name: str, value, decrease=0):
         self.experience_buffers[name][4][self.i_buffers[name]-decrease] = value
@@ -57,8 +59,14 @@ class ExperienceBuffer:
     def put_r_t1(self, name: str, value):
         self.experience_buffers[name][6][self.i_buffers[name]-1] = value
 
+    def get_r_t1(self, name: str, decrease=0):
+        return self.experience_buffers[name][6][self.i_buffers[name]-decrease]
+
     def put_r_t2(self, name: str, value):
         self.experience_buffers[name][7][self.i_buffers[name]-2] = value
+
+    def get_r_t2(self, name: str, decrease=0):
+        return self.experience_buffers[name][7][self.i_buffers[name]-decrease]
 
     def increase_i(self, name: str):
         self.i_buffers[name] += 1
