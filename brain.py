@@ -1,127 +1,86 @@
-from tensorflow.keras.models import Model
-from tensorflow.keras.layers import *
-import tensorflow as tf
+from typing import Iterable, List, Tuple, Union, Any
+
+import torch
 import numpy as np
 from random import random, randint
-
 from grid import Point
+from functools import reduce
+from abc import ABC, abstractmethod, abstractproperty
+from operator import mul
+from torch.nn import *
+
+class VisualCortex(Module):
+
+    def __init__(self, input_size: Union[List[int], Tuple[int]]):
+        super().__init__()
+        self.l1 = Sequential(Conv2d(4, 32, kernel_size=3, bias=True),
+                             ReLU())
+        self.l2 = Sequential(Conv2d(32, 256, kernel_size=3, bias=True, stride=2), BatchNorm2d(256), ReLU())
+        self.l3 = Sequential(Conv2d(256, 512, kernel_size=3, bias=True, stride=2), BatchNorm2d(512), ReLU())
+
+        self.l4 = Sequential(Linear(512, 64), BatchNorm1d(64), ReLU())
+
+        self.residual = Sequential(Linear(12 * 12 * 4, 64), BatchNorm1d(64), ReLU())
+        #
+
+    def forward(self, input: torch.Tensor):
+        output = self.l1(input)
+        output = self.l2(output)
+        output = self.l3(output)
+        output = torch.flatten(output, start_dim=1)
+        output = self.l4(output)
+        output += self.residual(torch.flatten(input, start_dim=1))
+        return output
 
 
-def cortex(input_size):
-    inputs = Input(input_size)
-    outputs = inputs
-    for i in range(1):
-        outputs = Conv2D(32 * (i+i), kernel_size=3, strides=2)(outputs)
-        outputs = ReLU()(outputs)
-    outputs = Flatten()(outputs)
-    return Model(inputs, outputs, name='main_cortex')
+class QValueModule(Module):
 
-
-def q_value_module(input_shape):
-    nmoves = 4
-    inputs = Input(input_shape)
-    outputs = inputs
-    outputs = Dense(nmoves * 6)(outputs)
-    outputs = BatchNormalization(trainable=False, scale=False)(outputs)
-    outputs = ReLU()(outputs)
-    outputs = Dense(nmoves * 3)(outputs)
-    outputs = BatchNormalization(trainable=False, scale=False)(outputs)
-    outputs = ReLU()(outputs)
-    outputs = Dense(nmoves, activation='sigmoid')(outputs)
-    outputs = tf.multiply(outputs, 2.0)
-    outputs = tf.subtract(outputs, 1.0)  # map into [-1, 1]
-    return Model(inputs, outputs, name='q_values_module')
-
-
-def curiosity_model(input_shape):
-    """
-    This brain module predict the type of cells after the movement
-    """
-    inputs = Input(input_shape)
-    outputs = inputs
-    output_size = 5 * 8  # type cells * number of cells around
-    outputs = Dense(output_size * 2)(outputs)
-    outputs = BatchNormalization(trainable=False)(outputs)
-    outputs = ReLU()(outputs)
-    outputs = Dense(output_size * 2)(outputs)
-    outputs = BatchNormalization(trainable=False)(outputs)
-    outputs = ReLU()(outputs)
-    outputs = Dense(output_size)(outputs)
-    outputs = Reshape((8, 5))(outputs)
-    outputs = tf.keras.activations.softmax(outputs, 1)
-    return Model(inputs, outputs, name='curiosity_module')
-
-
-def _outofbounds(state, position):
-    return any(axis < 0 for axis in position) or \
-           any(axis >= max_axis for axis, max_axis in zip(position, state.shape))
-
-
-def curiosity_loss(state, player_position, output_model):
-    ohe_matrix = np.eye(5)
-    player_neightbours = get_player_neightbours(player_position, state)
-    ohe_matrix = ohe_matrix[(player_neightbours * 4).astype('int')]
-    loss = tf.reduce_sum(tf.losses.categorical_crossentropy(ohe_matrix, output_model), axis=-1)
-    return loss
-
-
-def get_player_neightbours(player_position, state):
-    player_neightbours = np.zeros((8,), dtype='float32')
-    index = 0
-    for i in range(-1, 2):
-        for j in range(-1, 2):
-            if i != 0 and j != 0:
-                moved = player_position + Point(i, j)
-                if _outofbounds(state, moved):
-                    player_neightbours[index] = 0.0
+    def __init__(self, input_shape1: List[int], input_shape2: List[int]):
+        super().__init__()
+        self.l1 = Sequential(Linear(64, 16, bias=True),
+                             ReLU(),
+                             )
+        self.l2 = Sequential(Linear(16 + input_shape2[-1], 4, bias=True))
+        with torch.no_grad():
+            for i in range(4):
+                self.l2[0].weight[:, -3 - i * 4] = -0.1  # negative weight for block neighbors
+                self.l2[0].weight[:, -1 - i * 4] = 0.1  # positive weight for target neighbors
+            # order: [Direction.North, Direction.South, Direction.Est, Direction.West]
+            #w, h
+            # set right sign weight for distance from solution
+            for i in range(4):
+                if i in [2, 3]:
+                    self.l2[0].weight[i, -17] = 0.01  # h
                 else:
-                    player_neightbours[index] = state[moved].value
-                index += 1
-    return player_neightbours
+                    self.l2[0].weight[i, -17] = -0.01  # h
+                if i in [0, 1]:
+                    self.l2[0].weight[i, -18] = 0.01  # w
+                else:
+                    self.l2[0].weight[i, -18] = - 0.01  # w
 
 
-def brain_v1(input_size):
-    inputs = Input(input_size)
-    main_cortex = cortex(input_size)
-    outputs = inputs
-    cortex_output = main_cortex(outputs)
-
-    q_module = q_value_module(cortex_output.shape[1:])
-    q_value_est = q_module(cortex_output)
-    qnetwork = Model(inputs, q_value_est, name='brain_v1')
-
-    return qnetwork
+    def forward(self, state, neightbours):
+        # output = torch.flatten(state, start_dim=1)
+        output = self.l1(state)
+        output = torch.cat([output, neightbours], dim=-1)
+        return self.l2(output)
 
 
-def brain_v2(input_size):
-    inputs = Input(input_size)
-    main_cortex = cortex(input_size)
-    outputs = inputs
-    cortex_output = main_cortex(outputs)
+class BrainV1(Module):
 
-    print(cortex_output.shape)
+    def __init__(self, state_size: Union[List[int], Tuple[int]], extradata_size: Union[List[int], Tuple[int]]):
+        super().__init__()
+        self.visual = VisualCortex(state_size)
+        self.q_est = QValueModule(state_size, extradata_size)
+        self.curiosity_module = Sequential(Linear(64, 64), BatchNorm1d(64), ReLU(), Linear(64, 32), BatchNorm1d(32), ReLU(), Linear(32, 16))
+        self.log_softmax_c = LogSoftmax(dim=1)
 
-    q_module = q_value_module(cortex_output.shape[1:])
-    q_value_est = q_module(cortex_output)
-
-    curiosity = curiosity_model(cortex_output.shape[1:])
-    curiosity_output = curiosity(cortex_output)
-
-    brain = Model(inputs, [q_value_est, curiosity_output], name='brain_v2')
-
-    brain.summary()
-
-    return brain
-
-
-def loss_v1(reward, est_reward, future_est_reward, discount_factor):
-    return q_learning_loss(discount_factor, est_reward, future_est_reward, reward)
-
-
-def q_learning_loss(discount_factor, est_reward, future_est_reward, reward):
-    return tf.square((reward + discount_factor * future_est_reward) - est_reward)
-
-
-def loss_v2(reward, est_reward, future_est_reward, discount_factor, state, player_position, curiosity_output):
-    return q_learning_loss(discount_factor, est_reward, future_est_reward, reward) + \
-           curiosity_loss(state, player_position, curiosity_output)
+    def forward(self, state, extra, curiosity=False):
+        vis_output = self.visual(state)
+        output = self.q_est(vis_output, extra)
+        if curiosity:
+            c_output = self.curiosity_module(vis_output)
+            c_output = c_output.reshape(-1, 4, 4)
+            c_output = self.log_softmax_c(c_output)
+            return output, c_output
+        return output

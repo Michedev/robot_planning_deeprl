@@ -25,7 +25,8 @@ class Cell:
         if value == 3:
             destination = True
             explored = True
-        return [explored, empty, obstacle, has_player, destination]
+        unknown = not explored
+        return [unknown, empty, obstacle, has_player, destination]
 
 
 @dataclass
@@ -89,24 +90,30 @@ class Grid:
         self._grid = grid
         self.shape = list(self._grid.shape)
         self.w, self.h = self.shape[:2]
-        self.grid = self._public_grid(grid)
+        self.grid = self._public_grid(grid).astype('float32')
 
     def as_int(self, standardize=False):
-        return self.grid
+        return self.grid[:, :, 1:]
 
     @classmethod
     def from_string(cls, string):
         lines = string.split('\n')
         if not lines[-1]:
             del lines[-1]
-        w = len(lines[0])
-        h = len(lines)
+        w = len(lines[0]) + 2
+        h = len(lines) + 2
         grid = np.ndarray((w, h, 5), dtype=np.bool)
+        for i in range(len(lines)):
+            lines[i] = '1' + lines[i] + '1'
+        lines.insert(0, '1' * w)
+        lines.append('1' * w)
         player_position = None
         destination_position = None
-        for j, line in enumerate(lines):
-            for i, char in enumerate(line):
+        for i, line in enumerate(lines):
+            for j, char in enumerate(line):
                 grid[i, j] = Cell.to_bool_array(int(char))
+                if i == 0 or j == 0 or i == (w - 1) or j == (h - 1):
+                    grid[i, j, 0] = False
                 if grid[i, j, 3]:
                     player_position = Point(i, j)
                 if grid[i, j, 4]:
@@ -128,13 +135,14 @@ class Grid:
     __slots__ = ['destination_position', 'initial_player_position', '_grid', 'w', 'h', 'shape', 'grid']
 
     def explore(self, i, j):
-        self.grid[i,j,:] = self._grid[i,j,:]
+        self._grid[i, j, 0] = False
+        self.grid[i,j,:5] = self._grid[i,j,:5]
 
     def has_player(self, i, j):
         return self.grid[i, j, 3]
 
     def explored(self, i, j):
-        return self.grid[i, j, 0]
+        return not self.grid[i, j, 0]
 
     def obstacle(self, i, j):
         return self.grid[i, j, 2]
@@ -157,8 +165,7 @@ class Grid:
         public_grid = np.zeros(grid.shape, dtype='bool')
         for i in range(self.w):
             for j in range(self.h):
-                if grid[i, j, 0]: #i.e. if explored
+                public_grid[i, j, 0] = True
+                if not grid[i, j, 0]: #i.e. if explored
                     public_grid[i,j,:] = grid[i,j,:]
         return public_grid
-
-
