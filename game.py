@@ -110,7 +110,7 @@ class Game:
         counter_moves = 0
         self.first_turn = True
         tot_reward = 0
-        threshold_reward = -0.2 * self.grid.w * self.grid.h
+        threshold_reward = -0.4 * self.grid.w * self.grid.h
         while move_result != 1:
             move_result, reward = self.run_turn()
             counter_moves += 1
@@ -128,6 +128,8 @@ class Game:
         print('=' * 100)
         if self.counter_game % 10 == 0:
             win_rate = 1.0 - self.counter_failures / 10
+            if self.agent.epsilon < 0.3:
+                self.agent.decrease_epsilon = max(0, self.agent.decrease_epsilon - int(30 * (1 - win_rate)))
             self.agent.writer.add_scalar('win rate', win_rate, global_step=self.counter_game)
             self.counter_failures = 0
         return counter_moves

@@ -13,7 +13,7 @@ from random import random, randint
 #from modelsummary import summary
 from experience_buffer import ExperienceBuffer
 import json
-# from opt import RAdam
+from opt import RAdam
 from torch.optim import SGD, rmsprop
 
 has_gpu = torch.cuda.is_available()
@@ -55,10 +55,10 @@ class QAgent:
             self.brain.load_state_dict(torch.load(BRAINFILE))
         self.q_future = BrainV1(self.grid_shape, [self.extra_shape]).to(self._device)
         self._q_value_hat = 0
-        self.task_opt = rmsprop.RMSprop(self.brain.parameters(), lr=0.002, momentum=0.9)
+        self.task_opt = RAdam(self.brain.parameters(), lr=0.0004)
         self.task_lr_scheduler = torch.optim.lr_scheduler.StepLR(self.task_opt, step_size=30, gamma=0.5)
 
-        self.global_opt = rmsprop.RMSprop(self.brain.parameters(), lr=0.002, momentum=0.9)
+        self.global_opt = RAdam(self.brain.parameters(), lr=0.0003)
         self.global_lr_scheduler = torch.optim.lr_scheduler.StepLR(self.global_opt, step_size=30, gamma=0.5)
 
         self.mse = torch.nn.MSELoss(reduction='mean')
@@ -66,6 +66,7 @@ class QAgent:
         self.curiosity_loss = torch.nn.CrossEntropyLoss()
         self.step = 1
         self.episode = 0
+        self.decrease_epsilon = 0
         self.step_episode = 0
         self.writer = SummaryWriter('robot_logs')
         self.epsilon = 1.0
@@ -161,15 +162,11 @@ class QAgent:
     def experience_update(self, discount_factor):
         self.brain.train()
         for task in self.experience_buffer.task_names:
-            s_t, extra_t, a_t, r_t, s_t1, extra_t1, r_t1, r_t2 = self.experience_buffer.sample_same_task(task, 32)
+            s_t, extra_t, a_t, r_t, s_t1, extra_t1, r_t1, r_t2 = self.experience_buffer.sample_same_task(task, 128)
             qloss = self._train_step(s_t, extra_t, a_t, r_t, s_t1, extra_t1, r_t1, r_t2, discount_factor, is_task=True)
         if self.meta_learning:
           s_t, extra_t, a_t, r_t, s_t1, extra_t1, r_t1, r_t2 = self.experience_buffer.sample_all_tasks(16)
           qloss = self._train_step(s_t, extra_t, a_t, r_t, s_t1, extra_t1, r_t1, r_t2, discount_factor, is_task=False)
-        else:
-            for task in self.experience_buffer.task_names:
-                s_t, extra_t, a_t, r_t, s_t1, extra_t1, r_t1, r_t2 = self.experience_buffer.sample_same_task(task, 32)
-                qloss = self._train_step(s_t, extra_t, a_t, r_t, s_t1, extra_t1, r_t1, r_t2, discount_factor, is_task=True)
 
         if self.step % 10 == 0:
             self.writer.add_scalar('q loss', qloss, self.step)
@@ -204,17 +201,17 @@ class QAgent:
         return qloss
 
     def reset(self):
-        pass
+        self.epsilon = max(1.0 - 0.004 * self.decrease_epsilon, 0.01)
+        self.step_episode = 0
 
     def on_win(self):
         self.writer.add_scalar('steps per episode', self.step_episode, self.episode)
         self.episode += 1
-        self.task_lr_scheduler.step(self.episode)
-        self.global_lr_scheduler.step(self.episode)
+        self.decrease_epsilon += 1
+        # self.task_lr_scheduler.step(self.episode)
+        # self.global_lr_scheduler.step(self.episode)
         with open(AGENTDATA, mode='w') as f:
             json.dump(dict(step=self.step, episode=self.episode), f)
 
         self.update_freq = min(int(self.update_freq + self.episode/10), 30)
-        self.epsilon = max(1.0 - 0.004 * self.episode, 0.0)
-        self.step_episode = 0
 

@@ -9,15 +9,18 @@ from abc import ABC, abstractmethod, abstractproperty
 from operator import mul
 from torch.nn import *
 
-
 class VisualCortex(Module):
 
     def __init__(self, input_size: Union[List[int], Tuple[int]]):
         super().__init__()
         self.l1 = Sequential(Conv2d(4, 32, kernel_size=3, bias=True),
                              ReLU())
-        self.l2 = Sequential(Conv2d(32, 256, kernel_size=3, bias=True, stride=2), ReLU())
-        self.l3 = Sequential(Conv2d(256, 512, kernel_size=3, bias=True, stride=2), ReLU())
+        self.l2 = Sequential(Conv2d(32, 256, kernel_size=3, bias=True, stride=2), BatchNorm2d(256), ReLU())
+        self.l3 = Sequential(Conv2d(256, 512, kernel_size=3, bias=True, stride=2), BatchNorm2d(512), ReLU())
+
+        self.l4 = Sequential(Linear(512, 64), BatchNorm1d(64), ReLU())
+
+        self.residual = Sequential(Linear(12 * 12 * 4, 64), BatchNorm1d(64), ReLU())
         #
 
     def forward(self, input: torch.Tensor):
@@ -25,6 +28,8 @@ class VisualCortex(Module):
         output = self.l2(output)
         output = self.l3(output)
         output = torch.flatten(output, start_dim=1)
+        output = self.l4(output)
+        output += self.residual(torch.flatten(input, start_dim=1))
         return output
 
 
@@ -32,7 +37,7 @@ class QValueModule(Module):
 
     def __init__(self, input_shape1: List[int], input_shape2: List[int]):
         super().__init__()
-        self.l1 = Sequential(Linear(512, 16, bias=True),
+        self.l1 = Sequential(Linear(64, 16, bias=True),
                              ReLU(),
                              )
         self.l2 = Sequential(Linear(16 + input_shape2[-1], 4, bias=True))
@@ -67,7 +72,7 @@ class BrainV1(Module):
         super().__init__()
         self.visual = VisualCortex(state_size)
         self.q_est = QValueModule(state_size, extradata_size)
-        self.curiosity_module = Sequential(Linear(512, 128), ReLU(), Linear(128, 32), ReLU(), Linear(32, 16))
+        self.curiosity_module = Sequential(Linear(64, 64), BatchNorm1d(64), ReLU(), Linear(64, 32), BatchNorm1d(32), ReLU(), Linear(32, 16))
         self.log_softmax_c = LogSoftmax(dim=1)
 
     def forward(self, state, extra, curiosity=False):
