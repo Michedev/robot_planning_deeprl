@@ -55,11 +55,11 @@ class QAgent:
             self.brain.load_state_dict(torch.load(BRAINFILE))
         self.q_future = BrainV1(self.grid_shape, [self.extra_shape]).to(self._device)
         self._q_value_hat = 0
-        self.task_opt = rmsprop.RMSprop(self.brain.parameters(), lr=0.0002, momentum=0.9)
-        self.task_lr_scheduler = torch.optim.lr_scheduler.StepLR(self.task_opt, step_size=30, gamma=0.8)
+        self.task_opt = rmsprop.RMSprop(self.brain.parameters(), lr=0.002, momentum=0.9)
+        self.task_lr_scheduler = torch.optim.lr_scheduler.StepLR(self.task_opt, step_size=30, gamma=0.5)
 
-        self.global_opt = rmsprop.RMSprop(self.brain.parameters(), lr=0.0002, momentum=0.9)
-        self.global_lr_scheduler = torch.optim.lr_scheduler.StepLR(self.global_opt, step_size=30, gamma=0.8)
+        self.global_opt = rmsprop.RMSprop(self.brain.parameters(), lr=0.002, momentum=0.9)
+        self.global_lr_scheduler = torch.optim.lr_scheduler.StepLR(self.global_opt, step_size=30, gamma=0.5)
 
         self.mse = torch.nn.MSELoss(reduction='mean')
         self.bin_cross = torch.nn.BCELoss(reduction='mean')
