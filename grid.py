@@ -162,7 +162,6 @@ class Grid:
             self.grid[i, j, 1] = False
 
     def _public_grid(self, grid):
-        # return np.copy(grid)
         public_grid = np.zeros(grid.shape, dtype='bool')
         for i in range(self.w):
             for j in range(self.h):

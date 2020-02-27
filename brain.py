@@ -43,11 +43,11 @@ class QValueModule(Module):
         self.l2 = Sequential(Linear(16 + input_shape2[-1], 4, bias=True))
         with torch.no_grad():
             for i in range(4):
-                self.l2[0].weight[:, -3 - i * 4] = -0.1
-                self.l2[0].weight[:, -1 - i * 4] = 0.1
+                self.l2[0].weight[:, -3 - i * 4] = -0.1  # negative weight for block neighbors
+                self.l2[0].weight[:, -1 - i * 4] = 0.1  # positive weight for target neighbors
             # order: [Direction.North, Direction.South, Direction.Est, Direction.West]
             #w, h
-            #
+            # set right sign weight for distance from solution
             for i in range(4):
                 if i in [2, 3]:
                     self.l2[0].weight[i, -17] = 0.01  # h
