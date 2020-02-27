@@ -92,7 +92,7 @@ class Grid:
         self.w, self.h = self.shape[:2]
         self.grid = self._public_grid(grid).astype('float32')
 
-    def as_int(self, standardize=False):
+    def as_int(self):
         return self.grid[:, :, 1:]
 
     @classmethod

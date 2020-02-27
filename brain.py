@@ -1,17 +1,12 @@
-from typing import Iterable, List, Tuple, Union, Any
+from typing import List, Tuple, Union
 
 import torch
-import numpy as np
-from random import random, randint
-from grid import Point
-from functools import reduce
-from abc import ABC, abstractmethod, abstractproperty
-from operator import mul
 from torch.nn import *
+
 
 class VisualCortex(Module):
 
-    def __init__(self, input_size: Union[List[int], Tuple[int]]):
+    def __init__(self):
         super().__init__()
         self.l1 = Sequential(Conv2d(4, 32, kernel_size=3, bias=True),
                              ReLU())
@@ -35,12 +30,12 @@ class VisualCortex(Module):
 
 class QValueModule(Module):
 
-    def __init__(self, input_shape1: List[int], input_shape2: List[int]):
+    def __init__(self, input_shape_extra: List[int]):
         super().__init__()
         self.l1 = Sequential(Linear(64, 16, bias=True),
                              ReLU(),
                              )
-        self.l2 = Sequential(Linear(16 + input_shape2[-1], 4, bias=True))
+        self.l2 = Sequential(Linear(16 + input_shape_extra[-1], 4, bias=True))
         with torch.no_grad():
             for i in range(4):
                 self.l2[0].weight[:, -3 - i * 4] = -0.1  # negative weight for block neighbors
@@ -58,9 +53,7 @@ class QValueModule(Module):
                 else:
                     self.l2[0].weight[i, -18] = - 0.01  # w
 
-
     def forward(self, state, neightbours):
-        # output = torch.flatten(state, start_dim=1)
         output = self.l1(state)
         output = torch.cat([output, neightbours], dim=-1)
         return self.l2(output)
@@ -68,11 +61,13 @@ class QValueModule(Module):
 
 class BrainV1(Module):
 
-    def __init__(self, state_size: Union[List[int], Tuple[int]], extradata_size: Union[List[int], Tuple[int]]):
+    def __init__(self, extradata_size: Union[List[int], Tuple[int]]):
         super().__init__()
-        self.visual = VisualCortex(state_size)
-        self.q_est = QValueModule(state_size, extradata_size)
-        self.curiosity_module = Sequential(Linear(64, 64), BatchNorm1d(64), ReLU(), Linear(64, 32), BatchNorm1d(32), ReLU(), Linear(32, 16))
+        self.visual = VisualCortex()
+        self.q_est = QValueModule(extradata_size)
+        self.curiosity_module = Sequential(Linear(64, 64), BatchNorm1d(64), ReLU(),
+                                           Linear(64, 32), BatchNorm1d(32), ReLU(),
+                                           Linear(32, 16))
         self.log_softmax_c = LogSoftmax(dim=1)
 
     def forward(self, state, extra, curiosity=False):

@@ -3,8 +3,9 @@ import numpy as np
 from random import randint
 
 
-
-def gen_grid(w: int = 30, h: int = 30, nobstacles: int = 20, x_agent: int = 0, y_agent: int = 0, x_destination: int = 20, y_destination: int= 20, output: str = "grid.txt", set30x30=False, set10x10=False):
+def gen_grid(w: int = 30, h: int = 30, nobstacles: int = 20, x_agent: int = 0, y_agent: int = 0,
+             x_destination: int = 20, y_destination: int = 20, output: str = "grid.txt", set30x30=False,
+             set10x10=False):
     """
     Generate the map for the motion planning robot
     :param w: width of the grid - type: int
@@ -33,8 +34,9 @@ def gen_grid(w: int = 30, h: int = 30, nobstacles: int = 20, x_agent: int = 0, y
         grid[random_loc] = 1
     np.savetxt(output, grid, fmt='%d', delimiter='')
 
+
 def gen_grids_10x10():
-    x0, y0 = 0,0
+    x0, y0 = 0, 0
     maps = 10
     difficulty = [('easy', 0.01), ('medium', 0.1), ('hard', 0.2), ('impossible', 0.4)]
     for d, perc_obs in difficulty:
@@ -43,12 +45,13 @@ def gen_grids_10x10():
 
 
 def gen_grids_30x30():
-    x0, y0 = 0,0
+    x0, y0 = 0, 0
     maps = 10
     difficulty = [('easy', 0.01), ('medium', 0.1), ('hard', 0.2), ('impossible', 0.4)]
     for d, perc_obs in difficulty:
         for i in range(maps):
-            gen_grid(30, 30, int(30 * 30 * perc_obs), x0, y0, randint(15, 29), randint(15, 29), f'maps/grid_{d}_{i}.txt')
+            gen_grid(30, 30, int(30 * 30 * perc_obs), x0, y0, randint(15, 29), randint(15, 29),
+                     f'maps/grid_{d}_{i}.txt')
 
 
 if __name__ == '__main__':

@@ -1,36 +1,32 @@
-from typing import List
+import gc
+from hashlib import md5
 
 from QAgent import QAgent
 from grid import *
-from numpy import sign
-import viz
-import seaborn as sns
-from matplotlib.animation import FuncAnimation
-import matplotlib.pyplot as plt
-from hashlib import md5
-import gc
 
 
 class Game:
 
-    def __init__(self, grid_string, grid_name=None):
+    def __init__(self, agent, grid_string, grid_name=None, threshold_increase_epsilon=0.3, threshold_lose=-0.4):
         self.grid = Grid.from_string(grid_string)
         self.grid_name = grid_name or md5(grid_string.encode())
-        self.agent = QAgent(self.grid.shape)
+        self.agent = agent
         self.player_position = self.grid.initial_player_position
         self.min_distance = (self.grid.w * self.grid.h) ** 2
         self.first_run = True
         self.first_turn = True
         self.counter_failures = 0
-        # self.frames = []
+        self.past_positions = []
         self.turn = 0
+        self.threshold_increase_epsilon = threshold_increase_epsilon
+        self.threshold_lose = threshold_lose
         self.counter_game = 0
 
     @classmethod
-    def from_file(cls, grid_fname):
+    def from_file(cls, agent, grid_fname):
         with open(grid_fname) as f:
             txt = f.read()
-        return cls(txt, grid_fname)
+        return cls(agent, txt, grid_fname)
 
     def is_outofbounds(self, p):
         outofbounds = any(axis < 0 for axis in p) or \
@@ -86,7 +82,6 @@ class Game:
             self.first_turn = False
             self.explore_cells(self.player_position)
         int_grid = self.grid.as_int()
-        # self.frames.append(int_grid.astype('int'))
         move = self.agent.decide(self.grid_name, int_grid, self.player_position, self.grid.destination_position)
         direction = Direction.from_index(move).value
         move_result, reward = self.move(direction)
@@ -110,7 +105,7 @@ class Game:
         counter_moves = 0
         self.first_turn = True
         tot_reward = 0
-        threshold_reward = -0.4 * self.grid.w * self.grid.h
+        threshold_reward = self.threshold_lose * self.grid.w * self.grid.h
         while move_result != 1:
             move_result, reward = self.run_turn()
             counter_moves += 1
@@ -119,7 +114,6 @@ class Game:
                 print('too much time to reach destination, fail')
                 self.counter_failures += 1
                 break
-        # self._make_gif(self.frames)
         gc.collect()
         self.counter_game += 1
         self.agent.on_win()
@@ -128,7 +122,7 @@ class Game:
         print('=' * 100)
         if self.counter_game % 10 == 0:
             win_rate = 1.0 - self.counter_failures / 10
-            if self.agent.epsilon < 0.3:
+            if self.agent.epsilon < self.threshold_increase_epsilon:
                 self.agent.decrease_epsilon = max(0, self.agent.decrease_epsilon - int(30 * (1 - win_rate)))
             self.agent.writer.add_scalar('win rate', win_rate, global_step=self.counter_game)
             self.counter_failures = 0
@@ -139,19 +133,3 @@ class Game:
             grid_string = f.read()
         self.grid_name = fname
         self.grid = Grid.from_string(grid_string)
-
-    def _make_gif(self, frames: List[np.ndarray]):
-        f = lambda i: viz.numeric_repr_grid(frames[i])
-        print('num frames', len(frames))
-        fig: plt.Figure = plt.figure()
-        im = plt.imshow(f(0))
-
-        def init():
-            im.set_data(f(0))
-
-        def animate(i):
-            im.set_data(f(i))
-
-        anim = FuncAnimation(fig, animate, frames=len(frames), repeat=False, init_func=init)
-        anim.save('animation.gif', writer='imagemagick', fps=60)
-        raise -1
