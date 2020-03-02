@@ -66,7 +66,7 @@ class QValueModule(Module):
         output = torch.cat([output, neightbours], dim=-1)
         advantage = self.advantage_l(output)
         state_value = self.state_l(output)
-        advantage -= advantage.mean(dim=0)
+        advantage -= advantage.mean(dim=1, keepdim=True)
         return state_value + advantage
 
 
