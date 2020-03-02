@@ -40,7 +40,7 @@ class QValueModule(Module):
                                       BatchNorm1d(self.middle_neurons),
                                       ReLU(),
                                       Linear(self.middle_neurons, 4, bias=True))
-        self.state_l = Sequential(Linear(self.middle_neurons + input_shape_extra[-1], 1, bias=True),
+        self.state_l = Sequential(Linear(self.middle_neurons + input_shape_extra[-1], self.middle_neurons, bias=True),
                                   BatchNorm1d(self.middle_neurons),
                                   ReLU(),
                                   Linear(self.middle_neurons, 1, bias=True))
@@ -66,8 +66,8 @@ class QValueModule(Module):
         output = torch.cat([output, neightbours], dim=-1)
         advantage = self.advantage_l(output)
         state_value = self.state_l(output)
-        advantage = advantage - advantage.mean(dim=0)
-        return state + advantage
+        advantage -= advantage.mean(dim=0)
+        return state_value + advantage
 
 
 class BrainV1(Module):
