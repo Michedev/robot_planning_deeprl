@@ -6,16 +6,16 @@ from torch.nn import *
 
 class VisualCortex(Module):
 
-    def __init__(self):
+    def __init__(self, output_size=128):
         super().__init__()
         self.l1 = Sequential(Conv2d(4, 32, kernel_size=3, bias=True),
                              ReLU())
         self.l2 = Sequential(Conv2d(32, 256, kernel_size=3, bias=True, stride=2), BatchNorm2d(256), ReLU())
         self.l3 = Sequential(Conv2d(256, 512, kernel_size=3, bias=True, stride=2), BatchNorm2d(512), ReLU())
 
-        self.l4 = Sequential(Linear(512, 64), BatchNorm1d(64), ReLU())
+        self.l4 = Sequential(Linear(512, output_size), BatchNorm1d(output_size), ReLU())
 
-        self.residual = Sequential(Linear(12 * 12 * 4, 64), BatchNorm1d(64), ReLU())
+        self.residual = Sequential(Linear(12 * 12 * 4, output_size), BatchNorm1d(output_size), ReLU())
         #
 
     def forward(self, input: torch.Tensor):
@@ -30,42 +30,54 @@ class VisualCortex(Module):
 
 class QValueModule(Module):
 
-    def __init__(self, input_shape_extra: List[int]):
+    def __init__(self, input_shape_extra: List[int], input_size=128):
         super().__init__()
-        self.l1 = Sequential(Linear(64, 16, bias=True),
+        self.middle_neurons = 64
+        self.l1 = Sequential(Linear(input_size, self.middle_neurons, bias=True),
                              ReLU(),
                              )
-        self.l2 = Sequential(Linear(16 + input_shape_extra[-1], 4, bias=True))
+        self.advantage_l = Sequential(Linear(self.middle_neurons + input_shape_extra[-1], self.middle_neurons, bias=True),
+                                      BatchNorm1d(self.middle_neurons),
+                                      ReLU(),
+                                      Linear(self.middle_neurons, 4, bias=True))
+        self.state_l = Sequential(Linear(self.middle_neurons + input_shape_extra[-1], 1, bias=True),
+                                  BatchNorm1d(self.middle_neurons),
+                                  ReLU(),
+                                  Linear(self.middle_neurons, 1, bias=True))
         with torch.no_grad():
             for i in range(4):
-                self.l2[0].weight[:, -3 - i * 4] = -0.1  # negative weight for block neighbors
-                self.l2[0].weight[:, -1 - i * 4] = 0.1  # positive weight for target neighbors
+                self.advantage_l[0].weight[:, -3 - i * 4] = -0.1  # negative weight for block neighbors
+                self.advantage_l[0].weight[:, -1 - i * 4] = 0.1  # positive weight for target neighbors
             # order: [Direction.North, Direction.South, Direction.Est, Direction.West]
             #w, h
             # set right sign weight for distance from solution
             for i in range(4):
                 if i in [2, 3]:
-                    self.l2[0].weight[i, -17] = 0.01  # h
+                    self.advantage_l[0].weight[i, -17] = 0.01  # h
                 else:
-                    self.l2[0].weight[i, -17] = -0.01  # h
+                    self.advantage_l[0].weight[i, -17] = -0.01  # h
                 if i in [0, 1]:
-                    self.l2[0].weight[i, -18] = 0.01  # w
+                    self.advantage_l[0].weight[i, -18] = 0.01  # w
                 else:
-                    self.l2[0].weight[i, -18] = - 0.01  # w
+                    self.advantage_l[0].weight[i, -18] = - 0.01  # w
 
     def forward(self, state, neightbours):
         output = self.l1(state)
         output = torch.cat([output, neightbours], dim=-1)
-        return self.l2(output)
+        advantage = self.advantage_l(output)
+        state_value = self.state_l(output)
+        advantage = advantage - advantage.mean(dim=0)
+        return state + advantage
 
 
 class BrainV1(Module):
 
     def __init__(self, extradata_size: Union[List[int], Tuple[int]]):
         super().__init__()
-        self.visual = VisualCortex()
-        self.q_est = QValueModule(extradata_size)
-        self.curiosity_module = Sequential(Linear(64, 64), BatchNorm1d(64), ReLU(),
+        output_viz = 128
+        self.visual = VisualCortex(output_viz)
+        self.q_est = QValueModule(extradata_size, output_viz)
+        self.curiosity_module = Sequential(Linear(output_viz, 64), BatchNorm1d(64), ReLU(),
                                            Linear(64, 32), BatchNorm1d(32), ReLU(),
                                            Linear(32, 16))
         self.log_softmax_c = LogSoftmax(dim=1)
