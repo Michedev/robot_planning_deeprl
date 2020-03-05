@@ -97,7 +97,7 @@ class QAgent:
         return result
 
     def decide(self, grid_name, grid, my_pos, destination_pos):
-        if self.episode % 30 == 0:
+        if self.episode % 100 == 0:
           self.writer.add_image(grid_name + '_episode_' + str(self.episode), np.expand_dims(np.sum(grid * np.arange(1,5).reshape((1,1,4)), axis=-1) / 4.0, axis=0), self.step_episode)
         if not self.meta_learning:
             grid_name = 'grid'
@@ -182,8 +182,6 @@ class QAgent:
           s_t, extra_t, a_t, r_t, s_t1, extra_t1, r_t1, r_t2 = self.experience_buffer.sample_all_tasks(16)
           qloss = self._train_step(s_t, extra_t, a_t, r_t, s_t1, extra_t1, r_t1, r_t2, discount_factor, is_task=False)
 
-        if self.step % 10 == 0:
-            self.writer.add_scalar('q loss', qloss, self.step)
         if self.step % 100 == 0:
             for lname, params in self.brain.state_dict().items():
                 self.writer.add_histogram(lname.replace('.', '/'), params, global_step=self.step)
@@ -195,16 +193,20 @@ class QAgent:
             self.put_into_device(a_t, extra_t, extra_t1, r_t, r_t1, r_t2, s_t, s_t1)
         exp_rew_t, c_out = self.brain(s_t, extra_t, curiosity=True)
         exp_rew_t = exp_rew_t[a_t]
-        is_finished_episode = ((torch.ne(r_t, 1.0) & torch.ne(r_t1, 1.0)) & torch.ne(r_t2, 1.0)).float().unsqueeze(0)
+        is_finished_episode = ((torch.ne(r_t, 1.0) & torch.ne(r_t1, 1.0)) & torch.ne(r_t2, 1.0)).float().unsqueeze(-1)
         exp_rew_t3 = is_finished_episode * self.q_future(s_t1, extra_t1)
-        exp_rew_t3 = torch.max(exp_rew_t3, dim=1, )
+        exp_rew_t3 = torch.max(exp_rew_t3, dim=1)
         if isinstance(exp_rew_t3, tuple):
             exp_rew_t3 = exp_rew_t3[0]
         y = r_t + discount_factor * r_t1 + discount_factor ** 2 * r_t2 + discount_factor ** 3 * exp_rew_t3
         qloss = self.mse(y, exp_rew_t)
         curiosity_loss: torch.Tensor = - c_out * extra_t1[:, -16:].reshape((-1, 4, 4))
         curiosity_loss = curiosity_loss.sum(dim=[1,2]).mean(dim=0)
+        self.writer.add_scalar('loss/q_loss', qloss, self.step)
+        self.writer.add_scalar('loss/curiosity', curiosity_loss, self.step)
         qloss += curiosity_loss  #crossentropy, curiosity loss
+        self.writer.add_scalar('loss/tot_loss', qloss, self.step)
+
         del s_t, extra_t, a_t, r_t, s_t1,  extra_t1, exp_rew_t, exp_rew_t3
         qloss = torch.mean(qloss)
         qloss.backward()

@@ -14,7 +14,7 @@ class VisualCortex(Module):
         self.l3 = Sequential(Conv2d(256, 512, kernel_size=3, bias=True, stride=2), BatchNorm2d(512), ReLU())
 
         self.l4 = Sequential(Linear(512, output_size), BatchNorm1d(output_size), ReLU())
-        self.residual = Sequential(Linear(10 * 10 * 4, 64), BatchNorm1d(64), ReLU())
+        self.residual = Sequential(Linear(10 * 10 * 4, output_size), BatchNorm1d(output_size), ReLU())
 
 
     def forward(self, input: torch.Tensor):

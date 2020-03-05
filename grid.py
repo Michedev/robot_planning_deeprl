@@ -25,8 +25,7 @@ class Cell:
         if value == 3:
             destination = True
             explored = True
-        unknown = not explored
-        return [unknown, empty, obstacle, has_player, destination]
+        return [explored, empty, obstacle, has_player, destination]
 
 
 @dataclass
@@ -49,7 +48,7 @@ class Point:
         yield self.y
 
     def out_of_bound(self, w, h):
-        return  self.x < 0 or self.x >= w or self.y < 0 or self.y >= h
+        return self.x < 0 or self.x >= w or self.y < 0 or self.y >= h
 
     def euclidean_distance(self, other: 'Point'):
         if not isinstance(other, Point):
@@ -106,17 +105,11 @@ class Grid:
         w = len(lines[0])
         h = len(lines)
         grid = np.ndarray((w, h, 5), dtype=np.bool)
-        # for i in range(len(lines)):
-        #     lines[i] = '1' + lines[i] + '1'
-        # lines.insert(0, '1' * w)
-        # lines.append('1' * w)
         player_position = None
         destination_position = None
         for i, line in enumerate(lines):
             for j, char in enumerate(line):
                 grid[i, j] = Cell.to_bool_array(int(char))
-                if i == 0 or j == 0 or i == (w - 1) or j == (h - 1):
-                    grid[i, j, 0] = False
                 if grid[i, j, 3]:
                     player_position = Point(i, j)
                 if grid[i, j, 4]:
@@ -138,14 +131,14 @@ class Grid:
     __slots__ = ['destination_position', 'initial_player_position', '_grid', 'w', 'h', 'shape', 'grid']
 
     def explore(self, i, j):
-        self._grid[i, j, 0] = False
-        self.grid[i,j,:5] = self._grid[i,j,:5]
+        self._grid[i, j, 0] = True
+        self.grid[i, j, :5] = self._grid[i, j, :5]
 
     def has_player(self, i, j):
         return self.grid[i, j, 3]
 
     def explored(self, i, j):
-        return not self.grid[i, j, 0]
+        return self.grid[i, j, 0]
 
     def obstacle(self, i, j):
         return self.grid[i, j, 2]
@@ -168,7 +161,6 @@ class Grid:
         public_grid = np.zeros(grid.shape, dtype='bool')
         for i in range(self.w):
             for j in range(self.h):
-                public_grid[i, j, 0] = True
-                if not grid[i, j, 0]: #i.e. if explored
-                    public_grid[i,j,:] = grid[i,j,:]
+                if grid[i, j, 0]:  # i.e. if explored
+                    public_grid[i, j, :] = grid[i, j, :]
         return public_grid

@@ -33,8 +33,8 @@ class Game:
                       any(axis >= max_axis for axis, max_axis in zip(p, self.grid.shape))
         return outofbounds
 
-    def is_valid_move(self, p):
-        if not self.is_outofbounds(p):
+    def is_valid_move(self, p: Point):
+        if not p.out_of_bound(self.grid.w, self.grid.h):
             into_obstacle = self.grid.obstacle(p.x, p.y)
             return not into_obstacle
         return False
