@@ -49,9 +49,12 @@ class QAgent:
         self._device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.brain = BrainV1([self.extra_shape]).to(self._device)  # up / down / right / left
         self.brain.to(self._device)
-        if BRAINFILE.exists():
-            self.brain.load_state_dict(torch.load(BRAINFILE))
         self.q_future = BrainV1([self.extra_shape]).to(self._device)
+        if BRAINFILE.exists():
+            brain_state = torch.load(BRAINFILE)
+            self.brain.load_state_dict(brain_state)
+            self.q_future.load_state_dict(brain_state)
+            del brain_state
         self._q_value_hat = 0
         self.task_opt = RAdam(self.brain.parameters(), lr=0.0004)
         self.global_opt = RAdam(self.brain.parameters(), lr=0.0003)
@@ -191,13 +194,16 @@ class QAgent:
             self.put_into_device(a_t, extra_t, extra_t1, r_t, r_t1, r_t2, s_t, s_t1)
         exp_rew_t, c_out = self.brain(s_t, extra_t, curiosity=True)
         exp_rew_t = exp_rew_t[a_t]
-        is_finished_episode = ((torch.ne(r_t, 1.0) & torch.ne(r_t1, 1.0)) & torch.ne(r_t2, 1.0)).float().unsqueeze(-1)
+        is_finished_episode = ((torch.ne(r_t, 1.0) & torch.ne(r_t1, 1.0)) & torch.ne(r_t2, 1.0)).float().unsqueeze(0)
         exp_rew_t3 = is_finished_episode * self.q_future(s_t1, extra_t1)
         exp_rew_t3 = torch.max(exp_rew_t3, dim=1)
         if isinstance(exp_rew_t3, tuple):
             exp_rew_t3 = exp_rew_t3[0]
-        qloss = self.mse(r_t + discount_factor * r_t1 + discount_factor**2 * r_t2 + discount_factor**3 * exp_rew_t3, exp_rew_t)
-        qloss += - c_out[extra_t1[:, -16:].reshape((-1, 4, 4)) == 1].mean()  #crossentropy, curiosity loss
+        y = r_t + discount_factor * r_t1 + discount_factor ** 2 * r_t2 + discount_factor ** 3 * exp_rew_t3
+        qloss = self.mse(y, exp_rew_t)
+        curiosity_loss: torch.Tensor = - c_out * extra_t1[:, -16:].reshape((-1, 4, 4))
+        curiosity_loss = curiosity_loss.sum(dim=[1,2]).mean(dim=0)
+        qloss += curiosity_loss  #crossentropy, curiosity loss
         del s_t, extra_t, a_t, r_t, s_t1,  extra_t1, exp_rew_t, exp_rew_t3
         qloss = torch.mean(qloss)
         qloss.backward()
