@@ -48,6 +48,9 @@ class Point:
         yield self.x
         yield self.y
 
+    def out_of_bound(self, w, h):
+        return  self.x < 0 or self.x >= w or self.y < 0 or self.y >= h
+
     def euclidean_distance(self, other: 'Point'):
         if not isinstance(other, Point):
             raise TypeError(f'Euclidean distance must be calculated between two points instances - '
@@ -100,13 +103,13 @@ class Grid:
         lines = string.split('\n')
         if not lines[-1]:
             del lines[-1]
-        w = len(lines[0]) + 2
-        h = len(lines) + 2
+        w = len(lines[0])
+        h = len(lines)
         grid = np.ndarray((w, h, 5), dtype=np.bool)
-        for i in range(len(lines)):
-            lines[i] = '1' + lines[i] + '1'
-        lines.insert(0, '1' * w)
-        lines.append('1' * w)
+        # for i in range(len(lines)):
+        #     lines[i] = '1' + lines[i] + '1'
+        # lines.insert(0, '1' * w)
+        # lines.append('1' * w)
         player_position = None
         destination_position = None
         for i, line in enumerate(lines):

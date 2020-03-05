@@ -15,7 +15,7 @@ def main(epochs=3000, discount_factor=0.9, experience_size=500_000, update_q_fut
     g = None
     maps = MAPS.files('*.txt')
     seed(random_state)
-    agent = QAgent((12, 12, 5), discount_factor=discount_factor, experience_size=experience_size,
+    agent = QAgent((10, 10, 5), discount_factor=discount_factor, experience_size=experience_size,
                    update_q_fut=update_q_fut, sample_experience=sample_experience,
                    update_freq=update_freq, no_update_start=no_update_start,
                    meta_learning=meta_learning)

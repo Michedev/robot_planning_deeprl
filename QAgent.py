@@ -89,8 +89,9 @@ class QAgent:
         for direction in [Direction.North, Direction.South, Direction.Est, Direction.West]:
             val_direction = direction.value
             n_pos = my_pos + val_direction
-            cell_type = grid[:4, n_pos.x, n_pos.y]
-            result[4 + i * 4: 4 + (i + 1) * 4] = cell_type.squeeze()
+            if not n_pos.out_of_bound(w, h):
+                cell_type = grid[:4, n_pos.x, n_pos.y]
+                result[4 + i * 4: 4 + (i + 1) * 4] = cell_type.squeeze()
             i += 1
         result = torch.unsqueeze(result, dim=0)
         return result
@@ -196,7 +197,7 @@ class QAgent:
         exp_rew_t = exp_rew_t[a_t]
         is_finished_episode = ((torch.ne(r_t, 1.0) & torch.ne(r_t1, 1.0)) & torch.ne(r_t2, 1.0)).float().unsqueeze(0)
         exp_rew_t3 = is_finished_episode * self.q_future(s_t1, extra_t1)
-        exp_rew_t3 = torch.max(exp_rew_t3, dim=1)
+        exp_rew_t3 = torch.max(exp_rew_t3, dim=1, )
         if isinstance(exp_rew_t3, tuple):
             exp_rew_t3 = exp_rew_t3[0]
         y = r_t + discount_factor * r_t1 + discount_factor ** 2 * r_t2 + discount_factor ** 3 * exp_rew_t3
